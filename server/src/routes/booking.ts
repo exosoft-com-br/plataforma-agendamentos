@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { supabase } from "../supabaseClient";
 import { gerarProtocolo } from "../utils/gerarProtocolo";
 import { notificarConfirmacao, notificarCancelamento } from "../utils/notificacao";
+import { sanitizar, sanitizarId, validarTelefone, validarDataHora } from "../utils/sanitizar";
 
 export const bookingRouter = Router();
 
@@ -13,7 +14,15 @@ export const bookingRouter = Router();
  */
 bookingRouter.post("/booking", async (req: Request, res: Response) => {
   try {
-    const { nichoId, prestadorId, servicoId, clienteNome, clienteTelefone, dataHora } = req.body;
+    const rawBody = req.body;
+
+    // Sanitizar inputs
+    const nichoId = sanitizarId(rawBody.nichoId);
+    const prestadorId = sanitizarId(rawBody.prestadorId);
+    const servicoId = sanitizarId(rawBody.servicoId);
+    const clienteNome = sanitizar(rawBody.clienteNome || "");
+    const clienteTelefone = (rawBody.clienteTelefone || "").replace(/\D/g, "");
+    const dataHora = rawBody.dataHora;
 
     // Validar campos obrigatórios
     if (!nichoId || !prestadorId || !servicoId || !clienteNome || !clienteTelefone || !dataHora) {
@@ -24,7 +33,7 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
     }
 
     // Validar formato do telefone
-    if (!/^\d{12,13}$/.test(clienteTelefone)) {
+    if (!validarTelefone(clienteTelefone)) {
       res.status(400).json({
         erro: "Formato de telefone inválido. Use apenas números com DDD + DDI (ex: 5511999999999).",
       });
@@ -32,8 +41,8 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
     }
 
     // Validar data
-    const dataHoraObj = new Date(dataHora);
-    if (isNaN(dataHoraObj.getTime())) {
+    const dataHoraObj = validarDataHora(dataHora);
+    if (!dataHoraObj) {
       res.status(400).json({ erro: "Formato de data/hora inválido. Use ISO 8601." });
       return;
     }
@@ -181,10 +190,16 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
  */
 bookingRouter.post("/booking/cancel", async (req: Request, res: Response) => {
   try {
-    const { protocolo, clienteTelefone } = req.body;
+    const protocolo = sanitizar(req.body.protocolo || "");
+    const clienteTelefone = (req.body.clienteTelefone || "").replace(/\D/g, "");
 
     if (!protocolo || !clienteTelefone) {
       res.status(400).json({ erro: "Campos obrigatórios: protocolo e clienteTelefone" });
+      return;
+    }
+
+    if (!validarTelefone(clienteTelefone)) {
+      res.status(400).json({ erro: "Formato de telefone inválido." });
       return;
     }
 

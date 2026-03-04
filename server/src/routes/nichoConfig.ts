@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { supabase } from "../supabaseClient";
+import { sanitizarId } from "../utils/sanitizar";
 
 export const nichoConfigRouter = Router();
 
@@ -10,7 +11,7 @@ export const nichoConfigRouter = Router();
  */
 nichoConfigRouter.get("/nicho", async (req: Request, res: Response) => {
   try {
-    const { nichoId } = req.query;
+    const nichoId = sanitizarId((req.query.nichoId as string) || "");
 
     if (!nichoId) {
       res.status(400).json({ erro: "Parâmetro obrigatório: nichoId" });
@@ -21,7 +22,7 @@ nichoConfigRouter.get("/nicho", async (req: Request, res: Response) => {
     const { data: nicho, error: nichoErr } = await supabase
       .from("nichos")
       .select("*")
-      .eq("id", nichoId as string)
+      .eq("id", nichoId)
       .single();
 
     if (nichoErr || !nicho) {
@@ -33,14 +34,14 @@ nichoConfigRouter.get("/nicho", async (req: Request, res: Response) => {
     const { data: prestadoresRaw } = await supabase
       .from("prestadores")
       .select("*")
-      .eq("nicho_id", nichoId as string)
+      .eq("nicho_id", nichoId)
       .eq("ativo", true);
 
     // 3. Buscar serviços do nicho
     const { data: servicosRaw } = await supabase
       .from("servicos")
       .select("*")
-      .eq("nicho_id", nichoId as string)
+      .eq("nicho_id", nichoId)
       .eq("ativo", true);
 
     // Mapear para formato camelCase (compatível com Typebot)

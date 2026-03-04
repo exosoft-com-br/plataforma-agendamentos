@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { supabase } from "../supabaseClient";
 import { gerarSlotsDoDia, Slot } from "../utils/validarHorario";
+import { sanitizarId } from "../utils/sanitizar";
 
 export const availabilityRouter = Router();
 
@@ -11,7 +12,9 @@ export const availabilityRouter = Router();
  */
 availabilityRouter.get("/availability", async (req: Request, res: Response) => {
   try {
-    const { prestadorId, servicoId, data } = req.query;
+    const prestadorId = sanitizarId((req.query.prestadorId as string) || "");
+    const servicoId = sanitizarId((req.query.servicoId as string) || "");
+    const data = req.query.data;
 
     if (!prestadorId || !servicoId) {
       res.status(400).json({ erro: "Parâmetros obrigatórios: prestadorId e servicoId" });
@@ -30,7 +33,7 @@ availabilityRouter.get("/availability", async (req: Request, res: Response) => {
     const { data: p, error: pErr } = await supabase
       .from("prestadores")
       .select("*")
-      .eq("id", prestadorId as string)
+      .eq("id", prestadorId)
       .single();
 
     if (pErr || !p) {
@@ -61,7 +64,7 @@ availabilityRouter.get("/availability", async (req: Request, res: Response) => {
     const { data: s, error: sErr } = await supabase
       .from("servicos")
       .select("*")
-      .eq("id", servicoId as string)
+      .eq("id", servicoId)
       .single();
 
     if (sErr || !s) {
@@ -89,7 +92,7 @@ availabilityRouter.get("/availability", async (req: Request, res: Response) => {
     const { data: agendamentos } = await supabase
       .from("agendamentos")
       .select("data_hora")
-      .eq("prestador_id", prestadorId as string)
+      .eq("prestador_id", prestadorId)
       .eq("status", "confirmado")
       .gte("data_hora", inicioDoDia)
       .lte("data_hora", fimDoDia);
