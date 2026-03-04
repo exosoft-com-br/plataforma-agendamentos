@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Plataforma de Agendamentos</title>
+  <style>
+    :root {
+      --primary: #667eea; --primary-dark: #5a6fd6; --secondary: #764ba2;
+      --bg: #f0f2f5; --card: #fff; --text: #333; --text-light: #666;
+      --border: #e0e0e0; --success: #4caf50; --error: #e53935; --warn: #ff9800;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+
+    /* NAV */
+    .navbar {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: #fff; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15); position: sticky; top: 0; z-index: 100;
+    }
+    .navbar h1 { font-size: 1.2rem; }
+    .navbar .nav-info { font-size: .85rem; opacity: .8; }
+
+    /* LAYOUT */
+    .main { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+
+    /* TABS */
+    .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: var(--card); border-radius: 12px; padding: 4px; box-shadow: 0 1px 4px rgba(0,0,0,.08); overflow-x: auto; }
+    .tab {
+      padding: 10px 18px; border: none; background: none; cursor: pointer;
+      border-radius: 8px; font-size: .9rem; font-weight: 500; color: var(--text-light);
+      transition: all .2s; white-space: nowrap;
+    }
+    .tab:hover { background: #f5f5f5; }
+    .tab.active { background: var(--primary); color: #fff; }
+
+    /* CARDS */
+    .card {
+      background: var(--card); border-radius: 12px; padding: 24px; margin-bottom: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08); border: 1px solid var(--border);
+    }
+    .card h2 { font-size: 1.1rem; margin-bottom: 16px; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+    .card h3 { font-size: .95rem; margin: 16px 0 10px; color: var(--text); }
+
+    /* FORM */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 4px; color: var(--text-light); }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 12px; border: 2px solid var(--border); border-radius: 8px;
+      font-size: .95rem; font-family: inherit; transition: border-color .2s;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+
+    /* COLOR INPUTS */
+    .color-group { display: flex; align-items: center; gap: 8px; }
+    .color-group input[type="color"] { width: 42px; height: 36px; border: 2px solid var(--border); border-radius: 6px; cursor: pointer; padding: 2px; }
+    .color-group input[type="text"] { flex: 1; }
+
+    /* BUTTONS */
+    .btn {
+      padding: 10px 20px; border: none; border-radius: 8px; font-size: .9rem;
+      font-weight: 600; cursor: pointer; transition: all .15s; font-family: inherit;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-danger { background: var(--error); color: #fff; }
+    .btn-outline { background: none; border: 2px solid var(--border); color: var(--text); }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-group { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+
+    /* ALERTS */
+    .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: .9rem; display: none; }
+    .alert-success { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+    .alert-error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+
+    /* PREVIEW */
+    .preview-box {
+      border: 2px solid var(--border); border-radius: 12px; overflow: hidden; margin-top: 16px;
+    }
+    .preview-header { padding: 16px; text-align: center; color: #fff; }
+    .preview-header img { max-height: 40px; margin-bottom: 6px; border-radius: 6px; }
+    .preview-body { padding: 16px; }
+    .preview-btn { display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: .9rem; }
+
+    /* TABLE */
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th { background: #f5f5f5; padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-light); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    .badge { padding: 3px 10px; border-radius: 12px; font-size: .8rem; font-weight: 600; }
+    .badge-active { background: #e8f5e9; color: #2e7d32; }
+    .badge-pending { background: #fff3e0; color: #e65100; }
+    .badge-error { background: #ffebee; color: #c62828; }
+
+    /* SECTIONS */
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* EMPTY STATE */
+    .empty { text-align: center; padding: 40px; color: var(--text-light); }
+    .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+    /* CONFIG BAR */
+    .config-bar {
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 16px; margin-bottom: 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    }
+    .config-bar label { font-size: .85rem; font-weight: 600; white-space: nowrap; }
+    .config-bar input { flex: 1; min-width: 200px; padding: 8px 10px; border: 2px solid var(--border); border-radius: 6px; font-size: .85rem; }
+    .config-bar .btn { padding: 8px 14px; font-size: .85rem; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div>
+    <h1>⚙️ Painel Administrativo</h1>
+    <div class="nav-info">Plataforma de Agendamentos</div>
+  </div>
+  <div style="text-align:right">
+    <div class="nav-info" id="apiStatus">🔴 Desconectado</div>
+  </div>
+</nav>
+
+<div class="main">
+  <!-- Config Bar -->
+  <div class="config-bar">
+    <label>API:</label>
+    <input type="text" id="cfgApiUrl" placeholder="https://plataforma-agendamentos-api.onrender.com">
+    <label>Owner ID:</label>
+    <input type="text" id="cfgOwnerId" placeholder="UUID do dono">
+    <button class="btn btn-primary" onclick="salvarConfig()">Conectar</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="showSection('negocios')">🏢 Negócios</button>
+    <button class="tab" onclick="showSection('personalizacao')">🎨 Personalização</button>
+    <button class="tab" onclick="showSection('servicos')">📋 Serviços</button>
+    <button class="tab" onclick="showSection('agendamentos')">📅 Agendamentos</button>
+    <button class="tab" onclick="showSection('integracoes')">📧 Integrações</button>
+  </div>
+
+  <!-- Alert -->
+  <div id="alertSuccess" class="alert alert-success"></div>
+  <div id="alertError" class="alert alert-error"></div>
+
+  <!-- === NEGÓCIOS === -->
+  <div id="sec-negocios" class="section active">
+    <div class="card">
+      <h2>🏢 Meus Negócios</h2>
+      <div id="negociosList"></div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="toggleNovoNegocio()">+ Novo Negócio</button>
+      </div>
+    </div>
+
+    <div class="card" id="formNovoNegocio" style="display:none">
+      <h2>Cadastrar Negócio</h2>
+      <div class="form-group">
+        <label>Nicho (ID)</label>
+        <input type="text" id="nNichoId" placeholder="ex: barbearia, clinica, salao">
+      </div>
+      <div class="form-group">
+        <label>Nome Fantasia *</label>
+        <input type="text" id="nNomeFantasia" placeholder="Ex: Barbearia VIP">
+      </div>
+      <div class="form-group">
+        <label>Descrição</label>
+        <textarea id="nDescricao" rows="2" placeholder="Breve descrição do negócio"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Telefone Comercial</label>
+          <input type="tel" id="nTelefone" placeholder="5511999999999">
+        </div>
+        <div class="form-group">
+          <label>CNPJ/CPF</label>
+          <input type="text" id="nCnpjCpf" placeholder="00000000000">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Endereço</label>
+        <input type="text" id="nEndereco" placeholder="Rua, número, bairro">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cidade</label>
+          <input type="text" id="nCidade" placeholder="São Paulo">
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <input type="text" id="nEstado" value="SP" maxlength="2">
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-success" onclick="criarNegocio()">Cadastrar</button>
+        <button class="btn btn-outline" onclick="toggleNovoNegocio()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- === PERSONALIZAÇÃO === -->
+  <div id="sec-personalizacao" class="section">
+    <div class="card">
+      <h2>🎨 Personalização Visual</h2>
+      <div class="form-group">
+        <label>Selecione o Negócio</label>
+        <select id="pNegocioId" onchange="carregarPersonalizacao()"></select>
+      </div>
+
+      <h3>Cores</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cor Primária</label>
+          <div class="color-group">
+            <input type="color" id="pCorPrimariaColor" value="#667eea" oninput="syncColor('pCorPrimaria', this.value)">
+            <input type="text" id="pCorPrimaria" value="#667eea" oninput="syncColorPicker('pCorPrimariaColor', this.value)">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Cor Secundária</label>
+          <div class="color-group">
+            <input type="color" id="pCorSecundariaColor" value="#764ba2" oninput="syncColor('pCorSecundaria', this.value)">
+            <input type="text" id="pCorSecundaria" value="#764ba2" oninput="syncColorPicker('pCorSecundariaColor', this.value)">
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cor do Texto</label>
+          <div class="color-group">
+            <input type="color" id="pCorTextoColor" value="#ffffff" oninput="syncColor('pCorTexto', this.value)">
+            <input type="text" id="pCorTexto" value="#ffffff" oninput="syncColorPicker('pCorTextoColor', this.value)">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Cor de Fundo</label>
+          <div class="color-group">
+            <input type="color" id="pCorFundoColor" value="#f5f5f5" oninput="syncColor('pCorFundo', this.value)">
+            <input type="text" id="pCorFundo" value="#f5f5f5" oninput="syncColorPicker('pCorFundoColor', this.value)">
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cor do Botão</label>
+          <div class="color-group">
+            <input type="color" id="pCorBotaoColor" value="#667eea" oninput="syncColor('pCorBotao', this.value)">
+            <input type="text" id="pCorBotao" value="#667eea" oninput="syncColorPicker('pCorBotaoColor', this.value)">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Cor Texto Botão</label>
+          <div class="color-group">
+            <input type="color" id="pCorBotaoTextoColor" value="#ffffff" oninput="syncColor('pCorBotaoTexto', this.value)">
+            <input type="text" id="pCorBotaoTexto" value="#ffffff" oninput="syncColorPicker('pCorBotaoTextoColor', this.value)">
+          </div>
+        </div>
+      </div>
+
+      <h3>Fontes</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Fonte dos Títulos</label>
+          <select id="pFonteTitulo">
+            <option>Segoe UI</option><option>Roboto</option><option>Open Sans</option>
+            <option>Lato</option><option>Montserrat</option><option>Poppins</option>
+            <option>Inter</option><option>Nunito</option><option>Raleway</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fonte do Corpo</label>
+          <select id="pFonteCorpo">
+            <option>Segoe UI</option><option>Roboto</option><option>Open Sans</option>
+            <option>Lato</option><option>Montserrat</option><option>Poppins</option>
+            <option>Inter</option><option>Nunito</option><option>Raleway</option>
+          </select>
+        </div>
+      </div>
+
+      <h3>Imagens</h3>
+      <div class="form-group">
+        <label>URL do Logo</label>
+        <input type="url" id="pLogoUrl" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label>URL do Banner</label>
+        <input type="url" id="pBannerUrl" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label>URL do Favicon</label>
+        <input type="url" id="pFaviconUrl" placeholder="https://...">
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-success" onclick="salvarPersonalizacao()">💾 Salvar Personalização</button>
+        <button class="btn btn-outline" onclick="atualizarPreview()">👁 Atualizar Preview</button>
+      </div>
+
+      <!-- Preview -->
+      <h3>Preview</h3>
+      <div class="preview-box" id="previewBox">
+        <div class="preview-header" id="previewHeader" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+          <div id="previewLogo"></div>
+          <div style="font-size:1.1rem; font-weight:700;">📅 Agendamento Online</div>
+          <div style="opacity:.8; font-size:.85rem;">Agende seu horário</div>
+        </div>
+        <div class="preview-body" id="previewBody" style="background: #f5f5f5; padding: 20px;">
+          <div style="margin-bottom:10px; font-weight:600;">Escolha o serviço:</div>
+          <div style="border:2px solid #e0e0e0; border-radius:8px; padding:12px; margin-bottom:10px;">Corte Simples — R$ 35</div>
+          <div class="preview-btn" id="previewBtn" style="background: linear-gradient(135deg, #667eea, #764ba2); color:#fff; text-align:center; border-radius:8px; width:100%;">
+            Confirmar Agendamento
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- === SERVIÇOS === -->
+  <div id="sec-servicos" class="section">
+    <div class="card">
+      <h2>📋 Serviços & Prestadores</h2>
+      <div class="form-group">
+        <label>Selecione o Nicho</label>
+        <select id="sNichoId" onchange="carregarServicos()"></select>
+      </div>
+      <div id="servicosList"></div>
+      <div class="empty" id="servicosEmpty" style="display:none">
+        <div class="empty-icon">📋</div>
+        <p>Nenhum serviço encontrado para este nicho.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- === AGENDAMENTOS === -->
+  <div id="sec-agendamentos" class="section">
+    <div class="card">
+      <h2>📅 Agendamentos</h2>
+      <p style="color:var(--text-light); margin-bottom:16px; font-size:.9rem;">
+        Visualize os agendamentos realizados pelos clientes.
+      </p>
+      <div class="form-group">
+        <label>Selecione o Nicho</label>
+        <select id="aNichoId" onchange="carregarAgendamentos()"></select>
+      </div>
+      <div class="form-group">
+        <label>Data</label>
+        <input type="date" id="aData" onchange="carregarAgendamentos()">
+      </div>
+      <div class="table-scroll">
+        <table id="agendamentosTable" style="display:none">
+          <thead>
+            <tr><th>Hora</th><th>Cliente</th><th>Serviço</th><th>Status</th><th>Protocolo</th></tr>
+          </thead>
+          <tbody id="agendamentosBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="agendamentosEmpty" style="display:none">
+        <div class="empty-icon">📅</div>
+        <p>Nenhum agendamento nesta data.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- === INTEGRAÇÕES === -->
+  <div id="sec-integracoes" class="section">
+    <div class="card">
+      <h2>📧 Integrações de Email/Calendário</h2>
+      <div class="form-group">
+        <label>Selecione o Negócio</label>
+        <select id="iNegocioId" onchange="carregarIntegracoes()"></select>
+      </div>
+      <div id="integracoesList"></div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="toggleNovaIntegracao()">+ Nova Integração</button>
+      </div>
+    </div>
+
+    <div class="card" id="formNovaIntegracao" style="display:none">
+      <h2>Nova Integração</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Provedor *</label>
+          <select id="iProvedor">
+            <option value="google">Google Calendar</option>
+            <option value="outlook">Outlook</option>
+            <option value="apple">Apple iCal</option>
+            <option value="ical">iCal genérico</option>
+            <option value="smtp">SMTP (email)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Email do Calendário *</label>
+          <input type="email" id="iEmail" placeholder="email@exemplo.com">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Prestador ID *</label>
+        <input type="text" id="iPrestadorId" placeholder="ID do prestador (ex: barbeiro-pedro)">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label><input type="checkbox" id="iConfirmacao" checked> Enviar confirmação</label>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="iCancelamento" checked> Enviar cancelamento</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="iLembrete" checked> Enviar lembrete</label>
+      </div>
+      <div class="form-group">
+        <label>Lembrete (horas antes)</label>
+        <input type="number" id="iLembreteHoras" value="24" min="1" max="72">
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-success" onclick="criarIntegracao()">Salvar Integração</button>
+        <button class="btn btn-outline" onclick="toggleNovaIntegracao()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ======== CONFIG ========
+  let API_URL = localStorage.getItem('adminApiUrl') || 'https://plataforma-agendamentos-api.onrender.com';
+  let OWNER_ID = localStorage.getItem('adminOwnerId') || '';
+  let negociosCache = [];
+
+  document.getElementById('cfgApiUrl').value = API_URL;
+  document.getElementById('cfgOwnerId').value = OWNER_ID;
+
+  function salvarConfig() {
+    API_URL = document.getElementById('cfgApiUrl').value.trim().replace(/\/$/, '');
+    OWNER_ID = document.getElementById('cfgOwnerId').value.trim();
+    localStorage.setItem('adminApiUrl', API_URL);
+    localStorage.setItem('adminOwnerId', OWNER_ID);
+    verificarConexao();
+    carregarNegocios();
+  }
+
+  async function verificarConexao() {
+    try {
+      const r = await fetch(`${API_URL}/health`);
+      const j = await r.json();
+      document.getElementById('apiStatus').textContent = j.status === 'ok' ? '🟢 Conectado' : '🔴 Erro';
+    } catch {
+      document.getElementById('apiStatus').textContent = '🔴 Desconectado';
+    }
+  }
+
+  // ======== ALERTS ========
+  function showAlert(type, msg) {
+    const el = document.getElementById(type === 'success' ? 'alertSuccess' : 'alertError');
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 5000);
+  }
+
+  // ======== TABS ========
+  function showSection(name) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(`sec-${name}`).classList.add('active');
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+
+    if (name === 'personalizacao') populateNegocioSelect('pNegocioId');
+    if (name === 'servicos') populateNichoSelect('sNichoId');
+    if (name === 'agendamentos') { populateNichoSelect('aNichoId'); setDefaultDate(); }
+    if (name === 'integracoes') populateNegocioSelect('iNegocioId');
+  }
+
+  // ======== API HELPERS ========
+  async function apiFetch(path, opts = {}) {
+    const res = await fetch(`${API_URL}/api${path}`, {
+      headers: { 'Content-Type': 'application/json', ...opts.headers },
+      ...opts,
+    });
+    return res.json();
+  }
+
+  // ======== NEGÓCIOS ========
+  async function carregarNegocios() {
+    if (!OWNER_ID) {
+      document.getElementById('negociosList').innerHTML = '<div class="empty"><div class="empty-icon">🔑</div><p>Informe o Owner ID acima para começar.</p></div>';
+      return;
+    }
+    try {
+      const data = await apiFetch(`/negocios/${OWNER_ID}`);
+      negociosCache = data.negocios || [];
+      renderNegocios();
+    } catch (e) {
+      showAlert('error', 'Erro ao carregar negócios: ' + e.message);
+    }
+  }
+
+  function renderNegocios() {
+    const el = document.getElementById('negociosList');
+    if (!negociosCache.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">🏢</div><p>Nenhum negócio cadastrado.</p></div>';
+      return;
+    }
+    el.innerHTML = negociosCache.map(n => `
+      <div style="border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-weight:600;">${n.nome_fantasia || n.nomeFantasia}</div>
+          <div style="font-size:.85rem; color:var(--text-light);">Nicho: ${n.nicho_id || n.nichoId} · ${n.ativo ? '🟢 Ativo' : '🔴 Inativo'}</div>
+          ${n.telefone_comercial ? `<div style="font-size:.85rem; color:var(--text-light);">📞 ${n.telefone_comercial}</div>` : ''}
+          ${n.endereco ? `<div style="font-size:.85rem; color:var(--text-light);">📍 ${n.endereco}${n.cidade ? ', ' + n.cidade : ''}</div>` : ''}
+        </div>
+        <div style="font-size:.8rem; color:var(--text-light);">${n.id ? n.id.substring(0, 8) + '...' : ''}</div>
+      </div>
+    `).join('');
+  }
+
+  function toggleNovoNegocio() {
+    const f = document.getElementById('formNovoNegocio');
+    f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function criarNegocio() {
+    try {
+      const body = {
+        ownerId: OWNER_ID,
+        nichoId: document.getElementById('nNichoId').value.trim(),
+        nomeFantasia: document.getElementById('nNomeFantasia').value.trim(),
+        descricao: document.getElementById('nDescricao').value.trim(),
+        telefoneComercial: document.getElementById('nTelefone').value.trim(),
+        cnpjCpf: document.getElementById('nCnpjCpf').value.trim(),
+        endereco: document.getElementById('nEndereco').value.trim(),
+        cidade: document.getElementById('nCidade').value.trim(),
+        estado: document.getElementById('nEstado').value.trim(),
+      };
+      if (!body.nichoId || !body.nomeFantasia) {
+        showAlert('error', 'Nicho e Nome Fantasia são obrigatórios.');
+        return;
+      }
+      const data = await apiFetch('/negocios', { method: 'POST', body: JSON.stringify(body) });
+      if (data.erro) { showAlert('error', data.erro); return; }
+      showAlert('success', `Negócio "${body.nomeFantasia}" criado com sucesso!`);
+      toggleNovoNegocio();
+      carregarNegocios();
+    } catch (e) {
+      showAlert('error', 'Erro: ' + e.message);
+    }
+  }
+
+  // ======== PERSONALIZAÇÃO ========
+  function populateNegocioSelect(selectId) {
+    const sel = document.getElementById(selectId);
+    sel.innerHTML = negociosCache.length
+      ? negociosCache.map(n => `<option value="${n.id}">${n.nome_fantasia || n.nomeFantasia} (${n.nicho_id || n.nichoId})</option>`).join('')
+      : '<option value="">Nenhum negócio</option>';
+    if (selectId === 'pNegocioId' && negociosCache.length) carregarPersonalizacao();
+    if (selectId === 'iNegocioId' && negociosCache.length) carregarIntegracoes();
+  }
+
+  function syncColor(textId, value) { document.getElementById(textId).value = value; atualizarPreview(); }
+  function syncColorPicker(pickerId, value) { if (/^#[0-9a-fA-F]{6}$/.test(value)) { document.getElementById(pickerId).value = value; atualizarPreview(); } }
+
+  async function carregarPersonalizacao() {
+    const negocioId = document.getElementById('pNegocioId').value;
+    if (!negocioId) return;
+    try {
+      const p = await apiFetch(`/negocios/${negocioId}/personalizacao`);
+      setField('pCorPrimaria', p.corPrimaria); setField('pCorPrimariaColor', p.corPrimaria);
+      setField('pCorSecundaria', p.corSecundaria); setField('pCorSecundariaColor', p.corSecundaria);
+      setField('pCorTexto', p.corTexto); setField('pCorTextoColor', p.corTexto);
+      setField('pCorFundo', p.corFundo); setField('pCorFundoColor', p.corFundo);
+      setField('pCorBotao', p.corBotao); setField('pCorBotaoColor', p.corBotao);
+      setField('pCorBotaoTexto', p.corBotaoTexto); setField('pCorBotaoTextoColor', p.corBotaoTexto);
+      setSelect('pFonteTitulo', p.fonteTitulo || 'Segoe UI');
+      setSelect('pFonteCorpo', p.fonteCorpo || 'Segoe UI');
+      setField('pLogoUrl', p.logoUrl || '');
+      setField('pBannerUrl', p.bannerUrl || '');
+      setField('pFaviconUrl', p.faviconUrl || '');
+      atualizarPreview();
+    } catch (e) {
+      console.warn('Erro ao carregar personalização:', e);
+    }
+  }
+
+  function setField(id, val) { const el = document.getElementById(id); if (el) el.value = val || ''; }
+  function setSelect(id, val) { const el = document.getElementById(id); if (el) { el.value = val; if (!el.value) el.value = el.options[0]?.value || ''; } }
+
+  function atualizarPreview() {
+    const cp = document.getElementById('pCorPrimaria').value;
+    const cs = document.getElementById('pCorSecundaria').value;
+    const ct = document.getElementById('pCorTexto').value;
+    const cf = document.getElementById('pCorFundo').value;
+    const cb = document.getElementById('pCorBotao').value;
+    const cbt = document.getElementById('pCorBotaoTexto').value;
+    const logo = document.getElementById('pLogoUrl').value;
+
+    document.getElementById('previewHeader').style.background = `linear-gradient(135deg, ${cp}, ${cs})`;
+    document.getElementById('previewHeader').style.color = ct;
+    document.getElementById('previewBody').style.background = cf;
+    document.getElementById('previewBtn').style.background = `linear-gradient(135deg, ${cb}, ${cs})`;
+    document.getElementById('previewBtn').style.color = cbt;
+    document.getElementById('previewLogo').innerHTML = logo
+      ? `<img src="${logo}" style="max-height:36px; border-radius:6px; margin-bottom:4px;" onerror="this.style.display='none'">`
+      : '';
+  }
+
+  async function salvarPersonalizacao() {
+    const negocioId = document.getElementById('pNegocioId').value;
+    if (!negocioId) { showAlert('error', 'Selecione um negócio.'); return; }
+    try {
+      const body = {
+        corPrimaria: document.getElementById('pCorPrimaria').value,
+        corSecundaria: document.getElementById('pCorSecundaria').value,
+        corTexto: document.getElementById('pCorTexto').value,
+        corFundo: document.getElementById('pCorFundo').value,
+        corBotao: document.getElementById('pCorBotao').value,
+        corBotaoTexto: document.getElementById('pCorBotaoTexto').value,
+        fonteTitulo: document.getElementById('pFonteTitulo').value,
+        fonteCorpo: document.getElementById('pFonteCorpo').value,
+        logoUrl: document.getElementById('pLogoUrl').value || undefined,
+        bannerUrl: document.getElementById('pBannerUrl').value || undefined,
+        faviconUrl: document.getElementById('pFaviconUrl').value || undefined,
+      };
+      const data = await apiFetch(`/negocios/${negocioId}/personalizacao`, { method: 'PUT', body: JSON.stringify(body) });
+      if (data.erro) { showAlert('error', data.erro); return; }
+      showAlert('success', 'Personalização salva com sucesso! A página de agendamento será atualizada automaticamente.');
+    } catch (e) {
+      showAlert('error', 'Erro: ' + e.message);
+    }
+  }
+
+  // ======== SERVIÇOS ========
+  function populateNichoSelect(selectId) {
+    const nichos = [...new Set(negociosCache.map(n => n.nicho_id || n.nichoId))];
+    const sel = document.getElementById(selectId);
+    sel.innerHTML = nichos.length
+      ? nichos.map(n => `<option value="${n}">${n}</option>`).join('')
+      : '<option value="">Nenhum nicho</option>';
+    if (selectId === 'sNichoId' && nichos.length) carregarServicos();
+    if (selectId === 'aNichoId' && nichos.length) carregarAgendamentos();
+  }
+
+  async function carregarServicos() {
+    const nichoId = document.getElementById('sNichoId').value;
+    if (!nichoId) return;
+    try {
+      const data = await apiFetch(`/nicho?nichoId=${nichoId}`);
+      const el = document.getElementById('servicosList');
+      const empty = document.getElementById('servicosEmpty');
+
+      if (!data.servicos || !data.servicos.length) {
+        el.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+
+      el.innerHTML = `
+        <h3 style="margin-bottom:8px;">Prestadores</h3>
+        ${(data.prestadores || []).map(p => `
+          <div style="border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px; display:flex; justify-content:space-between;">
+            <div><strong>${p.nome}</strong><br><span style="font-size:.85rem; color:var(--text-light);">${p.categoria || ''} · ${p.id}</span></div>
+            <span class="badge ${p.ativo ? 'badge-active' : 'badge-error'}">${p.ativo ? 'Ativo' : 'Inativo'}</span>
+          </div>
+        `).join('')}
+        <h3 style="margin:16px 0 8px;">Serviços</h3>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Serviço</th><th>Duração</th><th>Preço</th><th>Prestador</th><th>Status</th></tr></thead>
+            <tbody>
+              ${data.servicos.map(s => `
+                <tr>
+                  <td><strong>${s.nome}</strong></td>
+                  <td>${s.duracaoMinutos} min</td>
+                  <td>${s.preco ? 'R$ ' + s.preco : '—'}</td>
+                  <td style="font-size:.85rem;">${s.prestadorId}</td>
+                  <td><span class="badge ${s.ativo ? 'badge-active' : 'badge-error'}">${s.ativo ? 'Ativo' : 'Inativo'}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } catch (e) {
+      showAlert('error', 'Erro ao carregar serviços: ' + e.message);
+    }
+  }
+
+  // ======== AGENDAMENTOS ========
+  function setDefaultDate() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('aData').value = today;
+  }
+
+  async function carregarAgendamentos() {
+    const nichoId = document.getElementById('aNichoId').value;
+    const data = document.getElementById('aData').value;
+    if (!nichoId || !data) return;
+
+    // Buscar prestadores do nicho
+    try {
+      const config = await apiFetch(`/nicho?nichoId=${nichoId}`);
+      if (!config.prestadores || !config.prestadores.length) {
+        document.getElementById('agendamentosTable').style.display = 'none';
+        document.getElementById('agendamentosEmpty').style.display = 'block';
+        return;
+      }
+
+      // Buscar disponibilidade de cada prestador para ver os ocupados
+      const tbody = document.getElementById('agendamentosBody');
+      tbody.innerHTML = '';
+      let totalAgendamentos = 0;
+
+      for (const prest of config.prestadores) {
+        for (const srv of config.servicos.filter(s => s.prestadorId === prest.id)) {
+          try {
+            const slots = await apiFetch(`/availability?prestadorId=${prest.id}&servicoId=${srv.id}&data=${data}`);
+            if (slots.slots) {
+              const ocupados = slots.slots.filter(s => !s.disponivel);
+              ocupados.forEach(slot => {
+                totalAgendamentos++;
+                const hora = slot.inicio.split('T')[1]?.substring(0, 5) || slot.inicio;
+                tbody.innerHTML += `
+                  <tr>
+                    <td><strong>${hora}</strong></td>
+                    <td>${slot.clienteNome || '—'}</td>
+                    <td>${srv.nome}</td>
+                    <td><span class="badge badge-active">Confirmado</span></td>
+                    <td style="font-size:.8rem;">${slot.protocolo || '—'}</td>
+                  </tr>
+                `;
+              });
+            }
+          } catch {}
+        }
+      }
+
+      if (totalAgendamentos > 0) {
+        document.getElementById('agendamentosTable').style.display = 'table';
+        document.getElementById('agendamentosEmpty').style.display = 'none';
+      } else {
+        document.getElementById('agendamentosTable').style.display = 'none';
+        document.getElementById('agendamentosEmpty').style.display = 'block';
+      }
+    } catch (e) {
+      showAlert('error', 'Erro ao carregar agendamentos: ' + e.message);
+    }
+  }
+
+  // ======== INTEGRAÇÕES ========
+  function toggleNovaIntegracao() {
+    const f = document.getElementById('formNovaIntegracao');
+    f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function carregarIntegracoes() {
+    const negocioId = document.getElementById('iNegocioId').value;
+    if (!negocioId) return;
+    try {
+      const data = await apiFetch(`/integracoes/email/${negocioId}`);
+      const el = document.getElementById('integracoesList');
+      const list = data.integracoes || [];
+
+      if (!list.length) {
+        el.innerHTML = '<div class="empty"><div class="empty-icon">📧</div><p>Nenhuma integração configurada.</p></div>';
+        return;
+      }
+
+      const provIcons = { google: '🔵', outlook: '🟦', apple: '🍎', ical: '📅', smtp: '📧' };
+      el.innerHTML = list.map(i => `
+        <div style="border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <strong>${provIcons[i.provedor] || '📧'} ${i.provedor.toUpperCase()}</strong>
+              <div style="font-size:.85rem; color:var(--text-light);">${i.email_calendario}</div>
+              <div style="font-size:.8rem; color:var(--text-light);">Prestador: ${i.prestador_id || i.prestadorId}</div>
+            </div>
+            <div>
+              <span class="badge ${i.status === 'ativo' ? 'badge-active' : i.status === 'erro' ? 'badge-error' : 'badge-pending'}">${i.status}</span>
+              <button class="btn btn-danger" style="padding:4px 10px; font-size:.8rem; margin-left:8px;" onclick="excluirIntegracao('${i.id}')">🗑</button>
+            </div>
+          </div>
+          <div style="font-size:.8rem; color:var(--text-light); margin-top:6px;">
+            ${i.enviar_confirmacao ? '✅ Confirmação' : '❌ Confirmação'} ·
+            ${i.enviar_cancelamento ? '✅ Cancelamento' : '❌ Cancelamento'} ·
+            ${i.enviar_lembrete ? '✅ Lembrete (${i.lembrete_horas_antes}h)' : '❌ Lembrete'}
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      showAlert('error', 'Erro: ' + e.message);
+    }
+  }
+
+  async function criarIntegracao() {
+    const negocioId = document.getElementById('iNegocioId').value;
+    if (!negocioId) { showAlert('error', 'Selecione um negócio.'); return; }
+    try {
+      const body = {
+        negocioId,
+        prestadorId: document.getElementById('iPrestadorId').value.trim(),
+        provedor: document.getElementById('iProvedor').value,
+        emailCalendario: document.getElementById('iEmail').value.trim(),
+        enviarConfirmacao: document.getElementById('iConfirmacao').checked,
+        enviarCancelamento: document.getElementById('iCancelamento').checked,
+        enviarLembrete: document.getElementById('iLembrete').checked,
+        lembreteHorasAntes: parseInt(document.getElementById('iLembreteHoras').value) || 24,
+      };
+      if (!body.prestadorId || !body.emailCalendario) {
+        showAlert('error', 'Prestador ID e email são obrigatórios.');
+        return;
+      }
+      const data = await apiFetch('/integracoes/email', { method: 'POST', body: JSON.stringify(body) });
+      if (data.erro) { showAlert('error', data.erro); return; }
+      showAlert('success', 'Integração criada com sucesso!');
+      toggleNovaIntegracao();
+      carregarIntegracoes();
+    } catch (e) {
+      showAlert('error', 'Erro: ' + e.message);
+    }
+  }
+
+  async function excluirIntegracao(id) {
+    if (!confirm('Remover esta integração?')) return;
+    try {
+      const data = await apiFetch(`/integracoes/email/${id}`, { method: 'DELETE' });
+      if (data.erro) { showAlert('error', data.erro); return; }
+      showAlert('success', 'Integração removida.');
+      carregarIntegracoes();
+    } catch (e) {
+      showAlert('error', 'Erro: ' + e.message);
+    }
+  }
+
+  // ======== INIT ========
+  verificarConexao();
+  if (OWNER_ID) carregarNegocios();
+</script>
+</body>
+</html>
