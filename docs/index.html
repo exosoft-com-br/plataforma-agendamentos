@@ -5,10 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Plataforma de Agendamentos</title>
   <style>
+    :root {
+      --cor-primaria: #667eea;
+      --cor-secundaria: #764ba2;
+      --cor-texto: #ffffff;
+      --cor-fundo: #f5f5f5;
+      --cor-botao: #667eea;
+      --cor-botao-texto: #ffffff;
+      --fonte-titulo: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --fonte-corpo: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: var(--fonte-corpo);
+      background: linear-gradient(135deg, var(--cor-primaria) 0%, var(--cor-secundaria) 100%);
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -24,12 +34,13 @@
       overflow: hidden;
     }
     .header {
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      color: #fff;
+      background: linear-gradient(135deg, var(--cor-primaria), var(--cor-secundaria));
+      color: var(--cor-texto);
       padding: 24px;
       text-align: center;
     }
-    .header h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    .header img.logo { max-height: 60px; margin-bottom: 10px; border-radius: 8px; }
+    .header h1 { font-family: var(--fonte-titulo); font-size: 1.4rem; margin-bottom: 4px; }
     .header p { opacity: .85; font-size: .9rem; }
     .body { padding: 24px; }
     .step { display: none; }
@@ -38,16 +49,19 @@
     input, select {
       width: 100%; padding: 12px; border: 2px solid #e0e0e0;
       border-radius: 8px; font-size: 1rem; margin-bottom: 16px;
-      transition: border-color .2s;
+      transition: border-color .2s; font-family: var(--fonte-corpo);
     }
-    input:focus, select:focus { outline: none; border-color: #667eea; }
+    input:focus, select:focus { outline: none; border-color: var(--cor-primaria); }
     .btn {
       width: 100%; padding: 14px; border: none; border-radius: 8px;
       font-size: 1rem; font-weight: 600; cursor: pointer;
-      transition: transform .1s, opacity .2s;
+      transition: transform .1s, opacity .2s; font-family: var(--fonte-corpo);
     }
     .btn:active { transform: scale(.98); }
-    .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--cor-botao), var(--cor-secundaria));
+      color: var(--cor-botao-texto);
+    }
     .btn-primary:hover { opacity: .9; }
     .btn-secondary { background: #f0f0f0; color: #333; margin-top: 8px; }
     .btn-secondary:hover { background: #e0e0e0; }
@@ -61,8 +75,8 @@
       background: #fff; cursor: pointer; font-size: .9rem;
       transition: all .2s; text-align: center;
     }
-    .slot-btn:hover { border-color: #667eea; background: #f0f0ff; }
-    .slot-btn.selected { border-color: #667eea; background: #667eea; color: #fff; }
+    .slot-btn:hover { border-color: var(--cor-primaria); background: color-mix(in srgb, var(--cor-primaria) 10%, #fff); }
+    .slot-btn.selected { border-color: var(--cor-primaria); background: var(--cor-primaria); color: var(--cor-texto); }
     .slot-btn.ocupado { background: #f5f5f5; color: #bbb; cursor: not-allowed; text-decoration: line-through; }
     .success-box {
       background: #e8f5e9; border: 2px solid #4caf50; border-radius: 12px;
@@ -81,18 +95,21 @@
       margin-bottom: 10px; cursor: pointer; transition: all .2s;
       display: flex; justify-content: space-between; align-items: center;
     }
-    .service-card:hover { border-color: #667eea; background: #f8f8ff; }
-    .service-card.selected { border-color: #667eea; background: #ede7f6; }
+    .service-card:hover { border-color: var(--cor-primaria); background: color-mix(in srgb, var(--cor-primaria) 5%, #fff); }
+    .service-card.selected { border-color: var(--cor-primaria); background: color-mix(in srgb, var(--cor-primaria) 12%, #fff); }
     .service-card .name { font-weight: 600; }
     .service-card .meta { font-size: .85rem; color: #666; }
-    .service-card .price { font-weight: 700; color: #667eea; font-size: 1.1rem; }
+    .service-card .price { font-weight: 700; color: var(--cor-primaria); font-size: 1.1rem; }
     .cancel-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
     .cancel-section h3 { margin-bottom: 12px; color: #666; font-size: .95rem; }
+    .banner-img { width: 100%; max-height: 160px; object-fit: cover; }
   </style>
 </head>
 <body>
   <div class="container">
+    <div id="bannerContainer"></div>
     <div class="header">
+      <img id="headerLogo" class="logo" style="display:none" alt="Logo">
       <h1 id="headerTitle">📅 Agendamento Online</h1>
       <p id="headerSubtitle">Escolha seu horário em poucos passos</p>
     </div>
@@ -164,17 +181,79 @@
 
   <script>
     // === CONFIGURAÇÃO ===
-    // Altere API_URL para a URL do Render após deploy
-    const API_URL = localStorage.getItem('apiUrl') || 'http://localhost:3000';
-    const NICHO_ID = localStorage.getItem('nichoId') || 'barbearia';
+    const API_URL = localStorage.getItem('apiUrl') || 'https://plataforma-agendamentos-api.onrender.com';
+    const NICHO_ID = new URLSearchParams(window.location.search).get('nicho') || localStorage.getItem('nichoId') || 'barbearia';
 
     let config = null;
     let selectedServico = null;
     let selectedPrestador = null;
     let selectedSlot = null;
 
+    // === PERSONALIZAÇÃO DINÂMICA ===
+    function aplicarPersonalizacao(p) {
+      if (!p) return;
+      const r = document.documentElement.style;
+      if (p.corPrimaria) r.setProperty('--cor-primaria', p.corPrimaria);
+      if (p.corSecundaria) r.setProperty('--cor-secundaria', p.corSecundaria);
+      if (p.corTexto) r.setProperty('--cor-texto', p.corTexto);
+      if (p.corFundo) r.setProperty('--cor-fundo', p.corFundo);
+      if (p.corBotao) r.setProperty('--cor-botao', p.corBotao);
+      if (p.corBotaoTexto) r.setProperty('--cor-botao-texto', p.corBotaoTexto);
+      if (p.fonteTitulo) r.setProperty('--fonte-titulo', `'${p.fonteTitulo}', system-ui, sans-serif`);
+      if (p.fonteCorpo) r.setProperty('--fonte-corpo', `'${p.fonteCorpo}', system-ui, sans-serif`);
+
+      // Logo
+      if (p.logoUrl) {
+        const logo = document.getElementById('headerLogo');
+        logo.src = p.logoUrl;
+        logo.style.display = 'block';
+        logo.onerror = () => { logo.style.display = 'none'; };
+      }
+
+      // Banner
+      if (p.bannerUrl) {
+        const bc = document.getElementById('bannerContainer');
+        bc.innerHTML = `<img class="banner-img" src="${p.bannerUrl}" alt="Banner" onerror="this.parentElement.innerHTML=''">`;
+      }
+
+      // Favicon
+      if (p.faviconUrl) {
+        let link = document.querySelector("link[rel~='icon']") || document.createElement('link');
+        link.rel = 'icon';
+        link.href = p.faviconUrl;
+        document.head.appendChild(link);
+      }
+
+      // Título do navegador
+      if (p.nomeNegocio) {
+        document.title = `${p.nomeNegocio} - Agendamento Online`;
+      }
+    }
+
+    async function carregarPersonalizacao() {
+      try {
+        const res = await fetch(`${API_URL}/api/personalizacao/nicho/${NICHO_ID}`);
+        if (res.ok) {
+          const p = await res.json();
+          aplicarPersonalizacao(p);
+          return p;
+        }
+      } catch (e) {
+        console.warn('Personalização não carregada, usando padrão:', e.message);
+      }
+      return null;
+    }
+
     // === INIT ===
     async function init() {
+      // Carregar personalização e config em paralelo
+      const [personalizacao] = await Promise.all([
+        carregarPersonalizacao(),
+        carregarConfig(),
+      ]);
+    }
+
+    async function carregarConfig() {
       try {
         const res = await fetch(`${API_URL}/api/nicho?nichoId=${NICHO_ID}`);
         config = await res.json();
@@ -183,12 +262,10 @@
           document.getElementById('headerTitle').textContent = `📅 ${config.nicho.nomePublico}`;
           document.getElementById('headerSubtitle').textContent = 'Agende seu horário online';
 
-          // Se só tem 1 prestador, selecionar automaticamente
           if (config.prestadores.length === 1) {
             selectedPrestador = config.prestadores[0];
           }
 
-          // Min date = amanhã
           const tomorrow = new Date();
           tomorrow.setDate(tomorrow.getDate() + 1);
           document.getElementById('dataConsulta').min = tomorrow.toISOString().split('T')[0];

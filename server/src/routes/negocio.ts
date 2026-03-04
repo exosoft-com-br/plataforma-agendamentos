@@ -386,3 +386,86 @@ negocioRouter.get("/negocios/:negocioId/personalizacao", async (req: Request, re
     res.status(500).json({ erro: "Erro interno." });
   }
 });
+
+/**
+ * GET /api/personalizacao/nicho/:nichoId
+ * Rota pública — busca personalização pelo nichoId (usado pelo frontend de agendamento).
+ * Encontra o negócio ativo daquele nicho e retorna suas cores/logo/fontes.
+ */
+negocioRouter.get("/personalizacao/nicho/:nichoId", async (req: Request, res: Response) => {
+  try {
+    const nichoId = sanitizarId(req.params.nichoId);
+    if (!nichoId) {
+      res.status(400).json({ erro: "nichoId inválido." });
+      return;
+    }
+
+    // Buscar negócio ativo deste nicho
+    const { data: negocio } = await supabase
+      .from("negocios")
+      .select("id, nome_fantasia")
+      .eq("nicho_id", nichoId)
+      .eq("ativo", true)
+      .limit(1)
+      .single();
+
+    if (!negocio) {
+      // Sem negócio cadastrado — retornar defaults
+      res.json({
+        corPrimaria: "#667eea",
+        corSecundaria: "#764ba2",
+        corTexto: "#ffffff",
+        corFundo: "#f5f5f5",
+        corBotao: "#667eea",
+        corBotaoTexto: "#ffffff",
+        fonteTitulo: "Segoe UI",
+        fonteCorpo: "Segoe UI",
+        logoUrl: null,
+        bannerUrl: null,
+        nomeNegocio: null,
+      });
+      return;
+    }
+
+    const { data: p } = await supabase
+      .from("personalizacoes")
+      .select("*")
+      .eq("negocio_id", negocio.id)
+      .single();
+
+    if (!p) {
+      res.json({
+        corPrimaria: "#667eea",
+        corSecundaria: "#764ba2",
+        corTexto: "#ffffff",
+        corFundo: "#f5f5f5",
+        corBotao: "#667eea",
+        corBotaoTexto: "#ffffff",
+        fonteTitulo: "Segoe UI",
+        fonteCorpo: "Segoe UI",
+        logoUrl: null,
+        bannerUrl: null,
+        nomeNegocio: negocio.nome_fantasia,
+      });
+      return;
+    }
+
+    res.json({
+      corPrimaria: p.cor_primaria,
+      corSecundaria: p.cor_secundaria,
+      corTexto: p.cor_texto,
+      corFundo: p.cor_fundo,
+      corBotao: p.cor_botao,
+      corBotaoTexto: p.cor_botao_texto,
+      fonteTitulo: p.fonte_titulo,
+      fonteCorpo: p.fonte_corpo,
+      logoUrl: p.logo_url,
+      faviconUrl: p.favicon_url,
+      bannerUrl: p.banner_url,
+      nomeNegocio: negocio.nome_fantasia,
+    });
+  } catch (erro) {
+    console.error("Erro ao buscar personalização por nicho:", erro);
+    res.status(500).json({ erro: "Erro interno." });
+  }
+});
