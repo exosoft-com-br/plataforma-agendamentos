@@ -160,6 +160,25 @@
     .preview-btn { display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: .9rem; }
 
     .admin-only { display: none; }
+
+    /* ===== OAuth Buttons ===== */
+    .oauth-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0 16px; color: var(--text-light); font-size: .85rem; }
+    .oauth-divider::before, .oauth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .btn-oauth {
+      width: 100%; padding: 12px 14px; border: 2px solid var(--border); border-radius: 10px;
+      font-size: .95rem; font-weight: 600; cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: all .2s; margin-bottom: 8px; background: #fff;
+    }
+    .btn-oauth:hover { border-color: var(--primary); background: #f8f9ff; }
+    .btn-oauth:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-google { color: #333; }
+    .btn-google:hover { border-color: #4285f4; }
+    .btn-facebook { color: #1877f2; }
+    .btn-facebook:hover { border-color: #1877f2; }
+    .btn-oauth svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .oauth-section { display: none; }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3); }
   </style>
 </head>
 <body>
@@ -188,6 +207,18 @@
         <input type="password" id="lSenha" placeholder="••••••••" autocomplete="current-password">
       </div>
       <button class="btn-login" id="btnLogin" onclick="fazerLogin()">Entrar</button>
+
+      <div class="oauth-divider">ou entre com</div>
+      <div class="oauth-section" id="oauthLoginBtns">
+        <button class="btn-oauth btn-google" id="btnGoogleLogin" onclick="loginGoogle()" style="display:none">
+          <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Entrar com Google
+        </button>
+        <button class="btn-oauth btn-facebook" id="btnFacebookLogin" onclick="loginFacebook()" style="display:none">
+          <svg viewBox="0 0 24 24"><path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          Entrar com Facebook
+        </button>
+      </div>
     </div>
 
     <!-- Register Form -->
@@ -208,6 +239,18 @@
         O primeiro cadastro será automaticamente <strong>Administrador</strong>.
       </p>
       <button class="btn-login" id="btnRegister" onclick="fazerRegistro()">Criar Conta</button>
+
+      <div class="oauth-divider">ou cadastre com</div>
+      <div class="oauth-section" id="oauthRegisterBtns">
+        <button class="btn-oauth btn-google" id="btnGoogleRegister" onclick="loginGoogle()" style="display:none">
+          <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Cadastrar com Google
+        </button>
+        <button class="btn-oauth btn-facebook" id="btnFacebookRegister" onclick="loginFacebook()" style="display:none">
+          <svg viewBox="0 0 24 24"><path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          Cadastrar com Facebook
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -219,6 +262,7 @@
     <div class="nav-info">Plataforma de Agendamentos</div>
   </div>
   <div class="nav-right">
+    <img class="user-avatar" id="userAvatar" style="display:none" src="">
     <span class="user-badge" id="userBadge"></span>
     <div style="text-align:right">
       <div class="nav-info" id="userName"></div>
@@ -438,8 +482,140 @@ const API_URL = 'https://plataforma-agendamentos-api.onrender.com';
 let AUTH_TOKEN = localStorage.getItem('authToken') || '';
 let CURRENT_USER = JSON.parse(localStorage.getItem('currentUser') || 'null');
 let negociosCache = [];
+let OAUTH_CONFIG = null;
 
 function isAdmin() { return CURRENT_USER && CURRENT_USER.role === 'admin'; }
+
+// ========================================================================
+// OAUTH — Google & Facebook SDK loading
+// ========================================================================
+async function carregarOAuthConfig() {
+  try {
+    const res = await fetch(`${API_URL}/api/auth/oauth-config`);
+    OAUTH_CONFIG = await res.json();
+
+    // Google
+    if (OAUTH_CONFIG.google && OAUTH_CONFIG.googleClientId) {
+      const gsiScript = document.createElement('script');
+      gsiScript.src = 'https://accounts.google.com/gsi/client';
+      gsiScript.async = true;
+      gsiScript.defer = true;
+      gsiScript.onload = () => {
+        window.google.accounts.id.initialize({
+          client_id: OAUTH_CONFIG.googleClientId,
+          callback: handleGoogleResponse,
+          auto_select: false,
+        });
+      };
+      document.head.appendChild(gsiScript);
+      document.querySelectorAll('.btn-google').forEach(b => b.style.display = 'flex');
+    }
+
+    // Facebook
+    if (OAUTH_CONFIG.facebook && OAUTH_CONFIG.facebookAppId) {
+      window.fbAsyncInit = function() {
+        FB.init({ appId: OAUTH_CONFIG.facebookAppId, cookie: true, xfbml: false, version: 'v19.0' });
+      };
+      const fbScript = document.createElement('script');
+      fbScript.src = 'https://connect.facebook.net/pt_BR/sdk.js';
+      fbScript.async = true;
+      fbScript.defer = true;
+      document.head.appendChild(fbScript);
+      document.querySelectorAll('.btn-facebook').forEach(b => b.style.display = 'flex');
+    }
+
+    // Mostrar containers se algum provider disponível
+    if (OAUTH_CONFIG.google || OAUTH_CONFIG.facebook) {
+      document.querySelectorAll('.oauth-section').forEach(s => s.style.display = 'block');
+    }
+  } catch (e) {
+    console.warn('OAuth config não disponível:', e);
+  }
+}
+
+async function handleGoogleResponse(response) {
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginError').style.color = 'var(--primary)';
+  document.getElementById('loginError').textContent = 'Autenticando com Google...';
+  try {
+    const res = await fetch(`${API_URL}/api/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: response.credential }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.erro) {
+      document.getElementById('loginError').style.color = '';
+      document.getElementById('loginError').textContent = data.erro || 'Erro na autenticação Google.';
+      return;
+    }
+    AUTH_TOKEN = data.token;
+    CURRENT_USER = data.usuario;
+    localStorage.setItem('authToken', AUTH_TOKEN);
+    localStorage.setItem('currentUser', JSON.stringify(CURRENT_USER));
+    iniciarPainel();
+  } catch (e) {
+    document.getElementById('loginError').style.color = '';
+    document.getElementById('loginError').textContent = 'Erro de conexão ao autenticar com Google.';
+  }
+}
+
+function loginGoogle() {
+  if (!window.google) {
+    document.getElementById('loginError').textContent = 'SDK do Google ainda carregando...';
+    return;
+  }
+  google.accounts.id.prompt((notification) => {
+    if (notification.isNotDisplayed()) {
+      // Fallback: popup manual
+      google.accounts.id.prompt();
+    }
+  });
+}
+
+async function loginFacebook() {
+  if (typeof FB === 'undefined') {
+    document.getElementById('loginError').textContent = 'SDK do Facebook ainda carregando...';
+    return;
+  }
+  document.getElementById('loginError').textContent = '';
+
+  FB.login(async function(response) {
+    if (response.authResponse) {
+      document.getElementById('loginError').style.color = 'var(--primary)';
+      document.getElementById('loginError').textContent = 'Autenticando com Facebook...';
+      try {
+        const res = await fetch(`${API_URL}/api/auth/facebook`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accessToken: response.authResponse.accessToken,
+            userID: response.authResponse.userID,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.erro) {
+          document.getElementById('loginError').style.color = '';
+          document.getElementById('loginError').textContent = data.erro || 'Erro na autenticação Facebook.';
+          return;
+        }
+        AUTH_TOKEN = data.token;
+        CURRENT_USER = data.usuario;
+        localStorage.setItem('authToken', AUTH_TOKEN);
+        localStorage.setItem('currentUser', JSON.stringify(CURRENT_USER));
+        iniciarPainel();
+      } catch (e) {
+        document.getElementById('loginError').style.color = '';
+        document.getElementById('loginError').textContent = 'Erro de conexão ao autenticar com Facebook.';
+      }
+    } else {
+      document.getElementById('loginError').textContent = 'Login com Facebook cancelado.';
+    }
+  }, { scope: 'email,public_profile' });
+}
+
+// Carregar config OAuth ao iniciar
+carregarOAuthConfig();
 
 // ========================================================================
 // LOGIN / REGISTER / LOGOUT
@@ -548,6 +724,15 @@ function iniciarPainel() {
   document.getElementById('userName').textContent = CURRENT_USER.nome || CURRENT_USER.email;
   document.getElementById('userBadge').textContent = isAdmin() ? '👑 ADMIN' : '👤 USUÁRIO';
   document.getElementById('userBadge').className = 'user-badge';
+
+  // Avatar (OAuth)
+  const avatar = document.getElementById('userAvatar');
+  if (CURRENT_USER.avatarUrl) {
+    avatar.src = CURRENT_USER.avatarUrl;
+    avatar.style.display = 'inline-block';
+  } else {
+    avatar.style.display = 'none';
+  }
 
   // Show/hide admin-only elements
   document.querySelectorAll('.admin-only').forEach(el => {
