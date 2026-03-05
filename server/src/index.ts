@@ -59,10 +59,10 @@ app.use(
 // SEGURANÇA: Rate Limiting — proteção contra abuso/DDoS
 // ============================================================
 
-// Limiter geral: 100 requests por IP a cada 15 min
+// Limiter geral: 500 requests por IP a cada 15 min
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: { erro: "Muitas requisições. Tente novamente em alguns minutos." },
@@ -86,14 +86,17 @@ const webhookLimiter = rateLimit({
   message: { erro: "Rate limit excedido." },
 });
 
-// Limiter para auth: 10 tentativas por IP a cada 15 min
+// Limiter para auth: 30 tentativas por IP a cada 5 min
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
+  windowMs: 5 * 60 * 1000,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { erro: "Muitas tentativas de login. Tente em 15 minutos." },
+  message: { erro: "Muitas tentativas de login. Tente em 5 minutos." },
 });
+
+// Trust proxy (Render/CloudFlare) para identificar IP real de cada usuário
+app.set('trust proxy', 1);
 
 app.use(generalLimiter);
 
