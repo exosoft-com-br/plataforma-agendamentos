@@ -14,6 +14,7 @@ import { webhookRouter } from "./routes/webhook";
 import { profileRouter } from "./routes/profile";
 import { negocioRouter } from "./routes/negocio";
 import { calendarioRouter } from "./routes/calendario";
+import { authRouter } from "./routes/auth";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -85,6 +86,15 @@ const webhookLimiter = rateLimit({
   message: { erro: "Rate limit excedido." },
 });
 
+// Limiter para auth: 10 tentativas por IP a cada 15 min
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { erro: "Muitas tentativas de login. Tente em 15 minutos." },
+});
+
 app.use(generalLimiter);
 
 // ============================================================
@@ -102,7 +112,9 @@ app.disable("x-powered-by");
 // ============================================================
 app.use("/api/booking", bookingLimiter);
 app.use("/api/whatsapp", webhookLimiter);
+app.use("/api/auth", authLimiter);
 
+app.use("/api", authRouter);
 app.use("/api", availabilityRouter);
 app.use("/api", bookingRouter);
 app.use("/api", nichoConfigRouter);

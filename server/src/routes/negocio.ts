@@ -238,6 +238,44 @@ negocioRouter.put("/negocios/:negocioId", async (req: Request, res: Response) =>
 });
 
 /**
+ * DELETE /api/negocios/:negocioId
+ * Exclui um negócio (e suas personalizações em cascata).
+ * Acesso: apenas admin (verificado pelo frontend via JWT role).
+ */
+negocioRouter.delete("/negocios/:negocioId", async (req: Request, res: Response) => {
+  try {
+    const negocioId = sanitizarId(req.params.negocioId);
+    if (!negocioId) {
+      res.status(400).json({ erro: "negocioId inválido." });
+      return;
+    }
+
+    // Excluir personalizacoes vinculadas
+    await supabase.from("personalizacoes").delete().eq("negocio_id", negocioId);
+
+    // Excluir integracoes vinculadas
+    await supabase.from("integracoes_email").delete().eq("negocio_id", negocioId);
+
+    // Excluir o negócio
+    const { error } = await supabase
+      .from("negocios")
+      .delete()
+      .eq("id", negocioId);
+
+    if (error) {
+      console.error("Erro ao excluir negócio:", error);
+      res.status(500).json({ erro: "Erro ao excluir negócio." });
+      return;
+    }
+
+    res.json({ sucesso: true, mensagem: "Negócio excluído com sucesso." });
+  } catch (erro) {
+    console.error("Erro ao excluir negócio:", erro);
+    res.status(500).json({ erro: "Erro interno." });
+  }
+});
+
+/**
  * PUT /api/negocios/:negocioId/personalizacao
  * Atualiza cores, logo, fontes do negócio.
  */
