@@ -17,7 +17,7 @@ exports.profileRouter.get("/profile/:userId", async (req, res) => {
             return;
         }
         const { data, error } = await supabaseClient_1.supabase
-            .from("profiles_atendimentos")
+            .from("usuarios")
             .select("*")
             .eq("id", userId)
             .single();
@@ -28,8 +28,8 @@ exports.profileRouter.get("/profile/:userId", async (req, res) => {
         res.json({
             id: data.id,
             email: data.email,
-            nomeCompleto: data.nome_completo,
-            telefone: data.telefone,
+            nomeCompleto: data.nome,
+            telefone: null,
             avatarUrl: data.avatar_url,
             role: data.role,
             criadoEm: data.criado_em,
@@ -56,9 +56,7 @@ exports.profileRouter.put("/profile/:userId", async (req, res) => {
         const avatarUrl = (0, sanitizar_1.sanitizar)(req.body.avatarUrl || "");
         const updates = {};
         if (nomeCompleto)
-            updates.nome_completo = nomeCompleto;
-        if (telefone)
-            updates.telefone = telefone;
+            updates.nome = nomeCompleto;
         if (avatarUrl)
             updates.avatar_url = avatarUrl;
         if (Object.keys(updates).length === 0) {
@@ -66,7 +64,7 @@ exports.profileRouter.put("/profile/:userId", async (req, res) => {
             return;
         }
         const { data, error } = await supabaseClient_1.supabase
-            .from("profiles_atendimentos")
+            .from("usuarios")
             .update(updates)
             .eq("id", userId)
             .select()
@@ -81,8 +79,7 @@ exports.profileRouter.put("/profile/:userId", async (req, res) => {
             perfil: {
                 id: data.id,
                 email: data.email,
-                nomeCompleto: data.nome_completo,
-                telefone: data.telefone,
+                nomeCompleto: data.nome,
                 avatarUrl: data.avatar_url,
             },
         });
