@@ -15,6 +15,7 @@ import { profileRouter } from "./routes/profile";
 import { negocioRouter } from "./routes/negocio";
 import { calendarioRouter } from "./routes/calendario";
 import { authRouter } from "./routes/auth";
+import { servicoRouter } from "./routes/servico";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -125,6 +126,7 @@ app.use("/api", webhookRouter);
 app.use("/api", profileRouter);
 app.use("/api", negocioRouter);
 app.use("/api", calendarioRouter);
+app.use("/api", servicoRouter);
 
 // Health check
 app.get("/health", (_req, res) => {

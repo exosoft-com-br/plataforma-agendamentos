@@ -398,11 +398,66 @@
 
   <!-- ===== SERVIÇOS ===== -->
   <div id="sec-servicos" class="section">
+    <!-- Prestadores -->
     <div class="card">
-      <h2>📋 Serviços & Prestadores</h2>
-      <div class="form-group"><label>Selecione o Nicho</label><select id="sNichoId" onchange="carregarServicos()"></select></div>
+      <h2>👤 Prestadores</h2>
+      <div class="form-group"><label>Selecione o Nicho</label><select id="sNichoId" onchange="carregarPrestadoresServicos()"></select></div>
+      <div id="prestadoresList"></div>
+      <div class="empty" id="prestadoresEmpty" style="display:none"><div class="empty-icon">👤</div><p>Nenhum prestador cadastrado.</p></div>
+      <div class="btn-group"><button class="btn btn-primary" onclick="toggleNovoPrestador()">+ Novo Prestador</button></div>
+    </div>
+    <div class="card" id="formNovoPrestador" style="display:none">
+      <h2>Novo Prestador</h2>
+      <div class="form-row">
+        <div class="form-group"><label>ID (slug único) *</label><input type="text" id="spId" placeholder="ex: joao-silva"></div>
+        <div class="form-group"><label>Nome *</label><input type="text" id="spNome" placeholder="Nome do prestador"></div>
+      </div>
+      <div class="form-group"><label>Categoria</label><input type="text" id="spCategoria" placeholder="ex: Barbeiro, Médico, Dentista"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Horário Início</label><input type="time" id="spHorarioInicio" value="08:00"></div>
+        <div class="form-group"><label>Horário Fim</label><input type="time" id="spHorarioFim" value="18:00"></div>
+      </div>
+      <div class="form-group">
+        <label>Dias da Semana</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label><input type="checkbox" class="sp-dia" value="0"> Dom</label>
+          <label><input type="checkbox" class="sp-dia" value="1" checked> Seg</label>
+          <label><input type="checkbox" class="sp-dia" value="2" checked> Ter</label>
+          <label><input type="checkbox" class="sp-dia" value="3" checked> Qua</label>
+          <label><input type="checkbox" class="sp-dia" value="4" checked> Qui</label>
+          <label><input type="checkbox" class="sp-dia" value="5" checked> Sex</label>
+          <label><input type="checkbox" class="sp-dia" value="6"> Sáb</label>
+        </div>
+      </div>
+      <div class="form-group"><label>WhatsApp (com DDI+DDD)</label><input type="tel" id="spWhatsapp" placeholder="5511999999999"></div>
+      <div class="btn-group">
+        <button class="btn btn-success" onclick="criarPrestador()">💾 Salvar</button>
+        <button class="btn btn-outline" onclick="toggleNovoPrestador()">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Serviços -->
+    <div class="card">
+      <h2>📋 Serviços</h2>
       <div id="servicosList"></div>
-      <div class="empty" id="servicosEmpty" style="display:none"><div class="empty-icon">📋</div><p>Nenhum serviço encontrado.</p></div>
+      <div class="empty" id="servicosEmpty" style="display:none"><div class="empty-icon">📋</div><p>Nenhum serviço encontrado. Cadastre um prestador primeiro.</p></div>
+      <div class="btn-group"><button class="btn btn-primary" onclick="toggleNovoServico()">+ Novo Serviço</button></div>
+    </div>
+    <div class="card" id="formNovoServico" style="display:none">
+      <h2>Novo Serviço</h2>
+      <div class="form-group"><label>Prestador *</label><select id="ssPrestadorId"></select></div>
+      <div class="form-row">
+        <div class="form-group"><label>ID (slug único) *</label><input type="text" id="ssId" placeholder="ex: corte-simples"></div>
+        <div class="form-group"><label>Nome do Serviço *</label><input type="text" id="ssNome" placeholder="ex: Corte Simples"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Duração (min) *</label><input type="number" id="ssDuracao" value="30" min="5" max="480"></div>
+        <div class="form-group"><label>Preço (R$)</label><input type="number" id="ssPreco" step="0.01" min="0" placeholder="35.00"></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-success" onclick="criarServico()">💾 Salvar</button>
+        <button class="btn btn-outline" onclick="toggleNovoServico()">Cancelar</button>
+      </div>
     </div>
   </div>
 
@@ -1049,34 +1104,260 @@ async function salvarPersonalizacao() {
 }
 
 // ========================================================================
-// SERVIÇOS
+// SERVIÇOS & PRESTADORES — CRUD COMPLETO
 // ========================================================================
+let prestadoresCache = [];
+let servicosCache = [];
+
 function populateNichoSelect(selectId) {
   const nichos = [...new Set(negociosCache.map(n => n.nichoId).filter(Boolean))];
   const sel = document.getElementById(selectId);
   sel.innerHTML = nichos.length ? nichos.map(n => `<option value="${n}">${n}</option>`).join('') : '<option value="">Nenhum nicho</option>';
-  if (selectId === 'sNichoId' && nichos.length) carregarServicos();
+  if (selectId === 'sNichoId' && nichos.length) carregarPrestadoresServicos();
   if (selectId === 'aNichoId' && nichos.length) carregarAgendamentos();
 }
 
-async function carregarServicos() {
+async function carregarPrestadoresServicos() {
   const nichoId = document.getElementById('sNichoId').value;
   if (!nichoId) return;
   try {
-    const data = await apiFetch(`/nicho?nichoId=${nichoId}`);
-    const el = document.getElementById('servicosList');
-    const empty = document.getElementById('servicosEmpty');
-    if (!data.servicos || !data.servicos.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
-    empty.style.display = 'none';
-    el.innerHTML = `
-      <h3>Prestadores</h3>
-      ${(data.prestadores||[]).map(p => `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;display:flex;justify-content:space-between"><div><strong>${p.nome}</strong><br><span style="font-size:.85rem;color:var(--text-light)">${p.categoria||''} · ${p.id}</span></div><span class="badge ${p.ativo?'badge-active':'badge-error'}">${p.ativo?'Ativo':'Inativo'}</span></div>`).join('')}
-      <h3 style="margin-top:16px">Serviços</h3>
-      <div class="table-scroll"><table><thead><tr><th>Serviço</th><th>Duração</th><th>Preço</th><th>Prestador</th><th>Status</th></tr></thead><tbody>
-      ${data.servicos.map(s => `<tr><td><strong>${s.nome}</strong></td><td>${s.duracaoMinutos} min</td><td>${s.preco?'R$ '+s.preco:'—'}</td><td style="font-size:.85rem">${s.prestadorId}</td><td><span class="badge ${s.ativo?'badge-active':'badge-error'}">${s.ativo?'Ativo':'Inativo'}</span></td></tr>`).join('')}
-      </tbody></table></div>`;
+    const [pData, sData] = await Promise.all([
+      apiFetch(`/prestadores?nichoId=${nichoId}`),
+      apiFetch(`/servicos?nichoId=${nichoId}`)
+    ]);
+    prestadoresCache = pData.prestadores || [];
+    servicosCache = sData.servicos || [];
+    renderPrestadores();
+    renderServicos();
+    populatePrestadorSelect();
+  } catch (e) { showAlert('error', 'Erro ao carregar: ' + e.message); }
+}
+
+function renderPrestadores() {
+  const el = document.getElementById('prestadoresList');
+  const empty = document.getElementById('prestadoresEmpty');
+  if (!prestadoresCache.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  const diasNomes = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  el.innerHTML = prestadoresCache.map((p, idx) => {
+    const dias = (p.diasSemana || []).map(d => diasNomes[d] || d).join(', ');
+    return `
+      <div class="negocio-card" style="margin-bottom:8px">
+        <div class="negocio-header">
+          <div class="negocio-info">
+            <div style="font-weight:700">${p.nome}</div>
+            <div class="negocio-detail">${p.categoria || 'Sem categoria'} · ${p.horarioInicio || '08:00'}–${p.horarioFim || '18:00'} · ${dias}</div>
+            <div class="negocio-detail" style="font-size:.8rem;color:var(--text-light)">ID: ${p.id}</div>
+          </div>
+          <div class="negocio-actions">
+            <span class="badge ${p.ativo !== false ? 'badge-active' : 'badge-error'}">${p.ativo !== false ? 'Ativo' : 'Inativo'}</span>
+            <button class="btn btn-outline btn-sm" onclick="toggleEditarPrestador(${idx})">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="excluirPrestador('${p.id}','${p.nome}')">🗑</button>
+          </div>
+        </div>
+        <div id="editPrest-${idx}" style="display:none"></div>
+      </div>`;
+  }).join('');
+}
+
+function toggleEditarPrestador(idx) {
+  const el = document.getElementById(`editPrest-${idx}`);
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  const p = prestadoresCache[idx];
+  const diasNums = p.diasSemana || [1,2,3,4,5];
+  el.innerHTML = `
+    <div style="padding:12px;border-top:1px solid var(--border)">
+      <div class="form-row">
+        <div class="form-group"><label>Nome</label><input type="text" id="ep${idx}Nome" value="${p.nome || ''}"></div>
+        <div class="form-group"><label>Categoria</label><input type="text" id="ep${idx}Cat" value="${p.categoria || ''}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Início</label><input type="time" id="ep${idx}HI" value="${p.horarioInicio || '08:00'}"></div>
+        <div class="form-group"><label>Fim</label><input type="time" id="ep${idx}HF" value="${p.horarioFim || '18:00'}"></div>
+      </div>
+      <div class="form-group"><label>WhatsApp</label><input type="tel" id="ep${idx}Wpp" value="${p.whatsappNumero || ''}"></div>
+      <div class="form-group">
+        <label>Dias</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${[0,1,2,3,4,5,6].map(d => `<label><input type="checkbox" class="ep${idx}-dia" value="${d}" ${diasNums.includes(d)?'checked':''}> ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]}</label>`).join('')}
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-success btn-sm" onclick="salvarPrestador(${idx})">💾 Salvar</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('editPrest-${idx}').style.display='none'">Cancelar</button>
+      </div>
+    </div>`;
+  el.style.display = 'block';
+}
+
+async function salvarPrestador(idx) {
+  const p = prestadoresCache[idx];
+  try {
+    const dias = [...document.querySelectorAll(`.ep${idx}-dia:checked`)].map(c => parseInt(c.value));
+    const body = {
+      nome: document.getElementById(`ep${idx}Nome`).value.trim(),
+      categoria: document.getElementById(`ep${idx}Cat`).value.trim(),
+      horarioInicio: document.getElementById(`ep${idx}HI`).value,
+      horarioFim: document.getElementById(`ep${idx}HF`).value,
+      whatsappNumero: document.getElementById(`ep${idx}Wpp`).value.trim(),
+      diasSemana: dias,
+    };
+    const data = await apiFetch(`/prestadores/${p.id}`, { method: 'PUT', body: JSON.stringify(body) });
+    if (data.erro) { showAlert('error', data.erro); return; }
+    showAlert('success', 'Prestador atualizado!');
+    carregarPrestadoresServicos();
   } catch (e) { showAlert('error', 'Erro: ' + e.message); }
 }
+
+async function excluirPrestador(id, nome) {
+  if (!confirm(`Excluir prestador "${nome}"? Todos os serviços vinculados serão excluídos.`)) return;
+  try {
+    const data = await apiFetch(`/prestadores/${id}`, { method: 'DELETE' });
+    if (data.erro) { showAlert('error', data.erro); return; }
+    showAlert('success', `"${nome}" excluído.`);
+    carregarPrestadoresServicos();
+  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+}
+
+function toggleNovoPrestador() {
+  const f = document.getElementById('formNovoPrestador');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function criarPrestador() {
+  const nichoId = document.getElementById('sNichoId').value;
+  if (!nichoId) { showAlert('error', 'Selecione um nicho primeiro.'); return; }
+  try {
+    const dias = [...document.querySelectorAll('.sp-dia:checked')].map(c => parseInt(c.value));
+    const body = {
+      nichoId,
+      id: document.getElementById('spId').value.trim(),
+      nome: document.getElementById('spNome').value.trim(),
+      categoria: document.getElementById('spCategoria').value.trim(),
+      horarioInicio: document.getElementById('spHorarioInicio').value,
+      horarioFim: document.getElementById('spHorarioFim').value,
+      diasSemana: dias,
+      whatsappNumero: document.getElementById('spWhatsapp').value.trim(),
+    };
+    if (!body.id || !body.nome) { showAlert('error', 'ID e Nome são obrigatórios.'); return; }
+    const data = await apiFetch('/prestadores', { method: 'POST', body: JSON.stringify(body) });
+    if (data.erro) { showAlert('error', data.erro); return; }
+    showAlert('success', `Prestador "${body.nome}" criado!`);
+    toggleNovoPrestador();
+    ['spId','spNome','spCategoria','spWhatsapp'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+    carregarPrestadoresServicos();
+  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+}
+
+// --- Serviços ---
+function populatePrestadorSelect() {
+  const sel = document.getElementById('ssPrestadorId');
+  if (!sel) return;
+  sel.innerHTML = prestadoresCache.length
+    ? prestadoresCache.map(p => `<option value="${p.id}">${p.nome} (${p.id})</option>`).join('')
+    : '<option value="">Cadastre um prestador primeiro</option>';
+}
+
+function renderServicos() {
+  const el = document.getElementById('servicosList');
+  const empty = document.getElementById('servicosEmpty');
+  if (!servicosCache.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  el.innerHTML = `
+    <div class="table-scroll"><table><thead><tr><th>Serviço</th><th>Duração</th><th>Preço</th><th>Prestador</th><th>Status</th><th>Ações</th></tr></thead><tbody>
+    ${servicosCache.map((s, idx) => `<tr>
+      <td><strong>${s.nome}</strong><br><span style="font-size:.75rem;color:var(--text-light)">${s.id}</span></td>
+      <td>${s.duracaoMinutos} min</td>
+      <td>${s.preco ? 'R$ ' + Number(s.preco).toFixed(2) : '—'}</td>
+      <td style="font-size:.85rem">${s.prestadorNome || s.prestadorId}</td>
+      <td><span class="badge ${s.ativo !== false ? 'badge-active' : 'badge-error'}">${s.ativo !== false ? 'Ativo' : 'Inativo'}</span></td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="toggleEditarServico(${idx})" style="padding:4px 8px">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="excluirServico('${s.id}','${s.nome}')" style="padding:4px 8px">🗑</button>
+      </td>
+    </tr>
+    <tr id="editServ-${idx}" style="display:none"><td colspan="6"></td></tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+function toggleEditarServico(idx) {
+  const tr = document.getElementById(`editServ-${idx}`);
+  if (tr.style.display !== 'none') { tr.style.display = 'none'; return; }
+  const s = servicosCache[idx];
+  tr.querySelector('td').innerHTML = `
+    <div style="padding:8px;background:#fafafa;border-radius:8px">
+      <div class="form-row">
+        <div class="form-group"><label>Nome</label><input type="text" id="es${idx}Nome" value="${s.nome || ''}"></div>
+        <div class="form-group"><label>Prestador</label><select id="es${idx}Prest">${prestadoresCache.map(p => `<option value="${p.id}" ${p.id===s.prestadorId?'selected':''}>${p.nome}</option>`).join('')}</select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Duração (min)</label><input type="number" id="es${idx}Dur" value="${s.duracaoMinutos || 30}" min="5" max="480"></div>
+        <div class="form-group"><label>Preço</label><input type="number" id="es${idx}Preco" value="${s.preco || ''}" step="0.01" min="0"></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-success btn-sm" onclick="salvarServico(${idx})">💾 Salvar</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('editServ-${idx}').style.display='none'">Cancelar</button>
+      </div>
+    </div>`;
+  tr.style.display = 'table-row';
+}
+
+async function salvarServico(idx) {
+  const s = servicosCache[idx];
+  try {
+    const body = {
+      nome: document.getElementById(`es${idx}Nome`).value.trim(),
+      prestadorId: document.getElementById(`es${idx}Prest`).value,
+      duracaoMinutos: parseInt(document.getElementById(`es${idx}Dur`).value) || 30,
+      preco: parseFloat(document.getElementById(`es${idx}Preco`).value) || null,
+    };
+    const data = await apiFetch(`/servicos/${s.id}`, { method: 'PUT', body: JSON.stringify(body) });
+    if (data.erro) { showAlert('error', data.erro); return; }
+    showAlert('success', 'Serviço atualizado!');
+    carregarPrestadoresServicos();
+  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+}
+
+async function excluirServico(id, nome) {
+  if (!confirm(`Excluir serviço "${nome}"?`)) return;
+  try {
+    const data = await apiFetch(`/servicos/${id}`, { method: 'DELETE' });
+    if (data.erro) { showAlert('error', data.erro); return; }
+    showAlert('success', `"${nome}" excluído.`);
+    carregarPrestadoresServicos();
+  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+}
+
+function toggleNovoServico() {
+  const f = document.getElementById('formNovoServico');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function criarServico() {
+  const nichoId = document.getElementById('sNichoId').value;
+  if (!nichoId) { showAlert('error', 'Selecione um nicho primeiro.'); return; }
+  try {
+    const body = {
+      nichoId,
+      prestadorId: document.getElementById('ssPrestadorId').value,
+      id: document.getElementById('ssId').value.trim(),
+      nome: document.getElementById('ssNome').value.trim(),
+      duracaoMinutos: parseInt(document.getElementById('ssDuracao').value) || 30,
+      preco: parseFloat(document.getElementById('ssPreco').value) || null,
+    };
+    if (!body.prestadorId || !body.id || !body.nome) { showAlert('error', 'Prestador, ID e Nome são obrigatórios.'); return; }
+    const data = await apiFetch('/servicos', { method: 'POST', body: JSON.stringify(body) });
+    if (data.erro) { showAlert('error', data.erro); return; }
+    showAlert('success', `Serviço "${body.nome}" criado!`);
+    toggleNovoServico();
+    ['ssId','ssNome','ssDuracao','ssPreco'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+    document.getElementById('ssDuracao').value = '30';
+    carregarPrestadoresServicos();
+  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+}
+
+// old function kept for backward compatibility
+async function carregarServicos() { carregarPrestadoresServicos(); }
 
 // ========================================================================
 // AGENDAMENTOS

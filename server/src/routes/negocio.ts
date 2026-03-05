@@ -141,6 +141,7 @@ negocioRouter.get("/negocios/:ownerId", async (req: Request, res: Response) => {
       nomeFantasia: n.nome_fantasia,
       descricao: n.descricao,
       telefoneComercial: n.telefone_comercial,
+      cnpjCpf: n.cnpj_cpf,
       endereco: n.endereco,
       bairro: n.bairro,
       cidade: n.cidade,
