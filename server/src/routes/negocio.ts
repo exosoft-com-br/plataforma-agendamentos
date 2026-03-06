@@ -152,18 +152,23 @@ negocioRouter.get("/negocios/:ownerId", async (req: Request, res: Response) => {
         saudacaoInicial: n.nichos.saudacao_inicial,
         termos: n.nichos.termos,
       } : null,
-      personalizacao: n.personalizacoes ? {
-        logoUrl: n.personalizacoes.logo_url,
-        corPrimaria: n.personalizacoes.cor_primaria,
-        corSecundaria: n.personalizacoes.cor_secundaria,
-        corTexto: n.personalizacoes.cor_texto,
-        corFundo: n.personalizacoes.cor_fundo,
-        corBotao: n.personalizacoes.cor_botao,
-        corBotaoTexto: n.personalizacoes.cor_botao_texto,
-        fonteTitulo: n.personalizacoes.fonte_titulo,
-        fonteCorpo: n.personalizacoes.fonte_corpo,
-        bannerUrl: n.personalizacoes.banner_url,
-      } : null,
+      personalizacao: (() => {
+        const pRaw = n.personalizacoes;
+        const p = Array.isArray(pRaw) ? (pRaw[0] || null) : pRaw;
+        if (!p) return null;
+        return {
+          logoUrl: p.logo_url,
+          corPrimaria: p.cor_primaria,
+          corSecundaria: p.cor_secundaria,
+          corTexto: p.cor_texto,
+          corFundo: p.cor_fundo,
+          corBotao: p.cor_botao,
+          corBotaoTexto: p.cor_botao_texto,
+          fonteTitulo: p.fonte_titulo,
+          fonteCorpo: p.fonte_corpo,
+          bannerUrl: p.banner_url,
+        };
+      })(),
       criadoEm: n.criado_em,
     }));
 
@@ -562,8 +567,9 @@ negocioRouter.get("/negocio/:negocioId/publico", async (req: Request, res: Respo
       .eq("nicho_id", nichoId)
       .eq("ativo", true);
 
-    // Personalização
-    const p = negocio.personalizacoes || {};
+    // Personalização (pode ser objeto ou array com 1 item)
+    const pRaw = negocio.personalizacoes;
+    const p = Array.isArray(pRaw) ? (pRaw[0] || {}) : (pRaw || {});
     const personalizacao = {
       corPrimaria: p.cor_primaria || "#667eea",
       corSecundaria: p.cor_secundaria || "#764ba2",
