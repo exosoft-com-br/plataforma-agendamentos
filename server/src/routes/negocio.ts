@@ -513,3 +513,121 @@ negocioRouter.get("/personalizacao/nicho/:nichoId", async (req: Request, res: Re
     res.status(500).json({ erro: "Erro interno." });
   }
 });
+
+/**
+ * GET /api/negocio/:negocioId/publico
+ * Rota PÚBLICA — retorna dados completos do negócio para página de agendamento.
+ * Inclui: negócio, personalização, nicho, prestadores, serviços.
+ */
+negocioRouter.get("/negocio/:negocioId/publico", async (req: Request, res: Response) => {
+  try {
+    const negocioId = req.params.negocioId;
+    
+    // Aceita UUID ou slug-like
+    if (!negocioId || negocioId.length < 2) {
+      res.status(400).json({ erro: "negocioId inválido." });
+      return;
+    }
+
+    // Buscar negócio
+    const { data: negocio, error: negocioErr } = await supabase
+      .from("negocios")
+      .select(`
+        *,
+        personalizacoes (*),
+        nichos (id, nome_publico, saudacao_inicial, texto_confirmacao, termos)
+      `)
+      .eq("id", negocioId)
+      .eq("ativo", true)
+      .single();
+
+    if (negocioErr || !negocio) {
+      res.status(404).json({ erro: "Negócio não encontrado ou inativo." });
+      return;
+    }
+
+    const nichoId = negocio.nicho_id;
+
+    // Buscar prestadores do nicho
+    const { data: prestadoresRaw } = await supabase
+      .from("prestadores")
+      .select("*")
+      .eq("nicho_id", nichoId)
+      .eq("ativo", true);
+
+    // Buscar serviços do nicho
+    const { data: servicosRaw } = await supabase
+      .from("servicos")
+      .select("*")
+      .eq("nicho_id", nichoId)
+      .eq("ativo", true);
+
+    // Personalização
+    const p = negocio.personalizacoes || {};
+    const personalizacao = {
+      corPrimaria: p.cor_primaria || "#667eea",
+      corSecundaria: p.cor_secundaria || "#764ba2",
+      corTexto: p.cor_texto || "#ffffff",
+      corFundo: p.cor_fundo || "#f5f5f5",
+      corBotao: p.cor_botao || "#667eea",
+      corBotaoTexto: p.cor_botao_texto || "#ffffff",
+      fonteTitulo: p.fonte_titulo || "Segoe UI",
+      fonteCorpo: p.fonte_corpo || "Segoe UI",
+      logoUrl: p.logo_url || null,
+      faviconUrl: p.favicon_url || null,
+      bannerUrl: p.banner_url || null,
+    };
+
+    // Nicho
+    const n = negocio.nichos || {};
+    const nicho = {
+      id: n.id || nichoId,
+      nomePublico: n.nome_publico || negocio.nome_fantasia,
+      saudacaoInicial: n.saudacao_inicial || "",
+      textoConfirmacao: n.texto_confirmacao || "",
+      termos: n.termos || {},
+    };
+
+    // Prestadores
+    const prestadores = (prestadoresRaw || []).map((prest: any) => ({
+      id: prest.id,
+      nome: prest.nome,
+      categoria: prest.categoria,
+      horarioAtendimento: {
+        inicio: prest.horario_inicio,
+        fim: prest.horario_fim,
+        diasSemana: prest.dias_semana,
+      },
+    }));
+
+    // Serviços
+    const servicos = (servicosRaw || []).map((s: any) => ({
+      id: s.id,
+      prestadorId: s.prestador_id,
+      nome: s.nome,
+      duracaoMinutos: s.duracao_minutos,
+      preco: s.preco ? Number(s.preco) : null,
+    }));
+
+    res.json({
+      negocio: {
+        id: negocio.id,
+        nichoId: negocio.nicho_id,
+        nomeFantasia: negocio.nome_fantasia,
+        descricao: negocio.descricao,
+        telefoneComercial: negocio.telefone_comercial,
+        endereco: negocio.endereco,
+        bairro: negocio.bairro,
+        cidade: negocio.cidade,
+        estado: negocio.estado,
+      },
+      personalizacao,
+      nicho,
+      prestadores,
+      servicos,
+    });
+  } catch (erro) {
+    console.error("Erro ao buscar negócio público:", erro);
+    res.status(500).json({ erro: "Erro interno." });
+  }
+});

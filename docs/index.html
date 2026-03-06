@@ -182,9 +182,11 @@
   <script>
     // === CONFIGURAÇÃO ===
     const API_URL = localStorage.getItem('apiUrl') || 'https://plataforma-agendamentos-api.onrender.com';
+    const NEGOCIO_ID = new URLSearchParams(window.location.search).get('negocio');
     const NICHO_ID = new URLSearchParams(window.location.search).get('nicho') || localStorage.getItem('nichoId') || 'barbearia';
 
     let config = null;
+    let negocioData = null;
     let selectedServico = null;
     let selectedPrestador = null;
     let selectedSlot = null;
@@ -223,11 +225,6 @@
         link.href = p.faviconUrl;
         document.head.appendChild(link);
       }
-
-      // Título do navegador
-      if (p.nomeNegocio) {
-        document.title = `${p.nomeNegocio} - Agendamento Online`;
-      }
     }
 
     async function carregarPersonalizacao() {
@@ -246,11 +243,58 @@
 
     // === INIT ===
     async function init() {
-      // Carregar personalização e config em paralelo
-      const [personalizacao] = await Promise.all([
-        carregarPersonalizacao(),
-        carregarConfig(),
-      ]);
+      // Se tem ?negocio=, carrega dados específicos desse negócio
+      if (NEGOCIO_ID) {
+        await carregarNegocio();
+      } else {
+        // Modo legado: carrega por nicho
+        await Promise.all([
+          carregarPersonalizacao(),
+          carregarConfig(),
+        ]);
+      }
+    }
+
+    // Carrega dados de um negócio específico (rota pública)
+    async function carregarNegocio() {
+      try {
+        const res = await fetch(`${API_URL}/api/negocio/${NEGOCIO_ID}/publico`);
+        if (!res.ok) {
+          const err = await res.json();
+          document.getElementById('step0').innerHTML = `<div class="error">${err.erro || 'Negócio não encontrado.'}</div>`;
+          return;
+        }
+        negocioData = await res.json();
+
+        // Aplicar personalização
+        aplicarPersonalizacao(negocioData.personalizacao);
+
+        // Montar config compatível com o fluxo existente
+        config = {
+          nicho: negocioData.nicho,
+          prestadores: negocioData.prestadores,
+          servicos: negocioData.servicos,
+        };
+
+        // Título
+        const titulo = negocioData.negocio.nomeFantasia || negocioData.nicho.nomePublico;
+        document.title = `${titulo} - Agendamento Online`;
+        document.getElementById('headerTitle').textContent = `📅 ${titulo}`;
+        document.getElementById('headerSubtitle').textContent = negocioData.nicho.saudacaoInicial || 'Agende seu horário online';
+
+        if (config.prestadores.length === 1) {
+          selectedPrestador = config.prestadores[0];
+        }
+
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        document.getElementById('dataConsulta').min = tomorrow.toISOString().split('T')[0];
+        document.getElementById('dataConsulta').value = tomorrow.toISOString().split('T')[0];
+
+        showStep(1);
+      } catch (e) {
+        document.getElementById('step0').innerHTML = `<div class="error">Erro de conexão: ${e.message}</div>`;
+      }
     }
 
     async function carregarConfig() {
@@ -371,6 +415,12 @@
     }
 
     // Confirmar
+    // Obter nichoId correto (modo negócio ou legado)
+    function getNichoId() {
+      if (negocioData && negocioData.nicho) return negocioData.nicho.id;
+      return NICHO_ID;
+    }
+
     async function confirmarAgendamento() {
       const btn = document.getElementById('btnConfirmar');
       btn.disabled = true;
@@ -381,7 +431,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            nichoId: NICHO_ID,
+            nichoId: getNichoId(),
             prestadorId: selectedPrestador.id,
             servicoId: selectedServico.id,
             clienteNome: document.getElementById('clienteNome').value.trim(),
