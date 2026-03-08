@@ -66,7 +66,28 @@ async function carregarNegocios() {
   try {
     const data = await apiFetch('/negocios');
     (data.negocios||[]).forEach(n => {
-      el.innerHTML += `<div class='negocio-card'><div class='negocio-header'><div class='negocio-info'><strong>${n.nome_fantasia||n.nome_publico||n.nome||n.id}</strong><div class='negocio-detail'>${n.descricao||''}</div></div><div class='negocio-actions'><button class='btn btn-outline btn-sm' onclick='editarNegocio("${n.id}")'>Editar</button></div></div></div>`;
+      const baseUrl = 'https://exosoft-com-br.github.io/plataforma-agendamentos/';
+      const linkAgendamento = `${baseUrl}?negocio=${n.id}`;
+      const linkAgenda = `${window.location.origin}/agenda/agenda.html?nichoId=${n.id}`;
+      el.innerHTML += `
+        <div class='negocio-card'>
+          <div class='negocio-header'>
+            <div class='negocio-info'>
+              <strong>${n.nome_fantasia||n.nome_publico||n.nome||n.id}</strong>
+              <div class='negocio-detail'>${n.descricao||''}</div>
+            </div>
+            <div class='negocio-actions'>
+              <button class='btn btn-outline btn-sm' onclick='editarNegocio("${n.id}")'>Editar</button>
+            </div>
+          </div>
+          <div class='negocio-links' style='margin-top:8px'>
+            <div style='font-size:.95em'>
+              <span>🔗 Link de agendamento: <a href='${linkAgendamento}' target='_blank'>${linkAgendamento}</a></span><br>
+              <span>📅 Link de agenda: <a href='${linkAgenda}' target='_blank'>${linkAgenda}</a></span>
+            </div>
+          </div>
+        </div>
+      `;
     });
   } catch (e) { el.innerHTML = '<div class="empty">Erro ao carregar negócios.</div>'; }
 }
