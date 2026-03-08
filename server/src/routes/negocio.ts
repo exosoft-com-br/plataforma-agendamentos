@@ -560,12 +560,25 @@ negocioRouter.get("/negocio/:negocioId/publico", async (req: Request, res: Respo
       .eq("nicho_id", nichoId)
       .eq("ativo", true);
 
-    // Buscar serviços do nicho
-    const { data: servicosRaw } = await supabase
+    // Buscar serviços vinculados ao negócio (por negocio_id OU nicho_id)
+    let servicosRaw = [];
+    // Primeiro tenta buscar por negocio_id (caso a coluna exista)
+    const { data: servicosByNegocio } = await supabase
       .from("servicos")
       .select("*")
-      .eq("nicho_id", nichoId)
+      .eq("negocio_id", negocioId)
       .eq("ativo", true);
+    if (servicosByNegocio && servicosByNegocio.length > 0) {
+      servicosRaw = servicosByNegocio;
+    } else {
+      // Fallback: busca por nicho_id (compatibilidade antiga)
+      const { data: servicosByNicho } = await supabase
+        .from("servicos")
+        .select("*")
+        .eq("nicho_id", nichoId)
+        .eq("ativo", true);
+      servicosRaw = servicosByNicho || [];
+    }
 
     // Personalização (pode ser objeto ou array com 1 item)
     const pRaw = negocio.personalizacoes;

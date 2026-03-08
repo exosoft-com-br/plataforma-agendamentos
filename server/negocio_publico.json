@@ -1,0 +1,30 @@
+﻿
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"negocio":{"id":"f62836fc-ece0-4aa1-aac4-497ec268db81","ni
+                    choId":"salao","nomeFantasia":"Barbearia Champions ligo","d
+                    escricao":"Barbearia","telefoneComercial":"55999997777","en
+                    dereco":"Rua Vapuaçu, 5...
+RawContent        : HTTP/1.1 200 OK
+                    Transfer-Encoding: chunked
+                    Connection: keep-alive
+                    CF-RAY: 9d952548391f4ee3-GRU
+                    content-security-policy: default-src 'self';base-uri 
+                    'self';font-src 'self' https: data:;form-action ...
+Forms             : {}
+Headers           : {[Transfer-Encoding, chunked], [Connection, keep-alive], 
+                    [CF-RAY, 9d952548391f4ee3-GRU], [content-security-policy, 
+                    default-src 'self';base-uri 'self';font-src 'self' https: 
+                    data:;form-action 'self';frame-ancestors 'self';img-src 
+                    'self' data:;object-src 'none';script-src 
+                    'self';script-src-attr 'none';style-src 'self' https: 
+                    'unsafe-inline';upgrade-insecure-requests]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : System.__ComObject
+RawContentLength  : 850
+
+
+
