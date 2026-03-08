@@ -1100,7 +1100,7 @@
         const desc = n.descricao || '';
         const cnpj = n.cnpjCpf || '';
         const linkAgendamento = `${baseUrl}?negocio=${n.id}`;
-        const linkAgenda = `${baseUrl}agenda/agenda.html?nichoId=${n.nichoId}`;
+        const linkAgenda = `${baseUrl}agenda/agenda-negocio.html?negocioId=${n.id}`;
 
         let endCompleto = [end, bairro].filter(Boolean).join(', ');
         if (cidade) endCompleto += (endCompleto ? ' — ' : '') + cidade;

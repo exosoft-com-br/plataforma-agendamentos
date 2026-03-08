@@ -4,27 +4,231 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agenda do Negócio</title>
-  <link rel="stylesheet" href="agenda-negocio.css">
+  <!-- Copied styles from index.html -->
+  <style>
+    :root {
+      --cor-primaria: #667eea;
+      --cor-secundaria: #764ba2;
+      --cor-texto: #ffffff;
+      --cor-fundo: #f5f5f5;
+      --cor-botao: #667eea;
+      --cor-botao-texto: #ffffff;
+      --fonte-titulo: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --fonte-corpo: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--fonte-corpo);
+      background: linear-gradient(135deg, var(--cor-primaria) 0%, var(--cor-secundaria) 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.2);
+      max-width: 800px; /* Increased width for table */
+      width: 100%;
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, var(--cor-primaria), var(--cor-secundaria));
+      color: var(--cor-texto);
+      padding: 24px;
+      text-align: center;
+    }
+    .header img.logo { max-height: 60px; margin-bottom: 10px; border-radius: 8px; }
+    .header h1 { font-family: var(--fonte-titulo); font-size: 1.4rem; margin-bottom: 4px; }
+    .header p { opacity: .85; font-size: .9rem; }
+    .body { padding: 24px; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; color: #333; font-size: .9rem; }
+    input {
+      width: 100%; padding: 12px; border: 2px solid #e0e0e0;
+      border-radius: 8px; font-size: 1rem; margin-bottom: 16px;
+      transition: border-color .2s; font-family: var(--fonte-corpo);
+    }
+    input:focus { outline: none; border-color: var(--cor-primaria); }
+    .error { color: #d32f2f; font-size: .85rem; margin-bottom: 12px; }
+    .loading { text-align: center; padding: 20px; color: #666; }
+    .banner-img { width: 100%; max-height: 160px; object-fit: cover; }
+    
+    /* Styles for agenda page */
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th { background: #f5f5f5; padding: 10px 12px; text-align: left; font-weight: 600; color: #555; }
+    td { padding: 10px 12px; border-bottom: 1px solid #eee; }
+    tr:last-child td { border-bottom: none; }
+    .badge { padding: 3px 10px; border-radius: 12px; font-size: .8rem; font-weight: 600; }
+    .badge-active { background: #e8f5e9; color: #2e7d32; }
+    .empty { text-align: center; padding: 40px; color: #888; }
+    .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  </style>
 </head>
 <body>
-  <div class="main">
-    <h1>Agenda do Negócio</h1>
-    <div class="card">
-      <div id="negocioInfo"></div>
-      <div class="form-row">
-        <div class="form-group"><label>Data</label><input type="date" id="data"></div>
-        <div class="form-group"><label>Cliente (nome)</label><input type="text" id="clienteNome" placeholder="Buscar por nome"></div>
-        <div class="form-group"><label>Telefone</label><input type="text" id="clienteTelefone" placeholder="Buscar por telefone"></div>
-      </div>
-      <div class="table-scroll">
-        <table id="agendaTable" style="display:none">
-          <thead><tr><th>Hora</th><th>Cliente</th><th>Telefone</th><th>Serviço</th><th>Status</th><th>Protocolo</th></tr></thead>
-          <tbody id="agendaBody"></tbody>
-        </table>
-      </div>
-      <div class="empty" id="agendaEmpty" style="display:none"><div class="empty-icon">📅</div><p>Nenhum agendamento encontrado.</p></div>
+  <div class="container">
+    <div id="bannerContainer"></div>
+    <div class="header">
+      <img id="headerLogo" class="logo" style="display:none" alt="Logo">
+      <h1 id="headerTitle">📅 Agenda</h1>
+      <p id="headerSubtitle">Compromissos agendados</p>
+    </div>
+    <div class="body">
+        <div id="filter-section">
+            <div class="form-row">
+                <div class="form-group"><label>Data</label><input type="date" id="data"></div>
+                <div class="form-group"><label>Cliente (nome)</label><input type="text" id="clienteNome" placeholder="Buscar por nome"></div>
+                <div class="form-group"><label>Telefone</label><input type="text" id="clienteTelefone" placeholder="Buscar por telefone"></div>
+            </div>
+        </div>
+        <div class="table-scroll">
+            <table id="agendaTable" style="display:none">
+            <thead><tr><th>Hora</th><th>Cliente</th><th>Telefone</th><th>Serviço</th><th>Status</th><th>Protocolo</th></tr></thead>
+            <tbody id="agendaBody"></tbody>
+            </table>
+        </div>
+        <div class="empty" id="agendaEmpty">
+            <div class="loading">Carregando agenda...</div>
+        </div>
     </div>
   </div>
-  <script src="agenda-negocio.js"></script>
+
+  <script>
+    // === CONFIGURAÇÃO ===
+    const API_URL = 'https://plataforma-agendamentos-api.onrender.com';
+    const NEGOCIO_ID = new URLSearchParams(window.location.search).get('negocioId');
+
+    // === HELPERS ===
+    function getQueryParam(name) {
+      return new URLSearchParams(window.location.search).get(name);
+    }
+    
+    async function apiFetch(path, opts = {}) {
+      const headers = { 'Content-Type': 'application/json', ...opts.headers };
+      const res = await fetch(`${API_URL}/api${path}`, { ...opts, headers });
+      return res.json();
+    }
+
+    // === PERSONALIZAÇÃO DINÂMICA ===
+    function aplicarPersonalizacao(p) {
+      if (!p) return;
+      const r = document.documentElement.style;
+      if (p.corPrimaria) r.setProperty('--cor-primaria', p.corPrimaria);
+      if (p.corSecundaria) r.setProperty('--cor-secundaria', p.corSecundaria);
+      if (p.corTexto) r.setProperty('--cor-texto', p.corTexto);
+      if (p.corFundo) r.setProperty('--cor-fundo', p.corFundo);
+      if (p.corBotao) r.setProperty('--cor-botao', p.corBotao);
+      if (p.corBotaoTexto) r.setProperty('--cor-botao-texto', p.corBotaoTexto);
+      if (p.fonteTitulo) r.setProperty('--fonte-titulo', `'${p.fonteTitulo}', system-ui, sans-serif`);
+      if (p.fonteCorpo) r.setProperty('--fonte-corpo', `'${p.fonteCorpo}', system-ui, sans-serif`);
+
+      if (p.logoUrl) {
+        const logo = document.getElementById('headerLogo');
+        logo.src = p.logoUrl;
+        logo.style.display = 'block';
+        logo.onerror = () => { logo.style.display = 'none'; };
+      }
+
+      if (p.bannerUrl) {
+        const bc = document.getElementById('bannerContainer');
+        bc.innerHTML = `<img class="banner-img" src="${p.bannerUrl}" alt="Banner" onerror="this.parentElement.innerHTML=''">`;
+      }
+      
+      if (p.faviconUrl) {
+        let link = document.querySelector("link[rel~='icon']") || document.createElement('link');
+        link.rel = 'icon';
+        link.href = p.faviconUrl;
+        document.head.appendChild(link);
+      }
+    }
+
+    // === LÓGICA DA PÁGINA ===
+    async function init() {
+        if (!NEGOCIO_ID) {
+            document.getElementById('agendaEmpty').innerHTML = '<div class="error">ID do negócio não fornecido.</div>';
+            return;
+        }
+        
+        try {
+            const negocioData = await apiFetch(`/negocio/${NEGOCIO_ID}/publico`);
+            
+            aplicarPersonalizacao(negocioData.personalizacao);
+
+            const titulo = negocioData.negocio.nomeFantasia || 'Agenda';
+            document.title = `Agenda - ${titulo}`;
+            document.getElementById('headerTitle').textContent = `📅 Agenda`;
+            document.getElementById('headerSubtitle').textContent = titulo;
+
+            // Set default date and load agenda
+            const today = new Date();
+            document.getElementById('data').value = today.toISOString().split('T')[0];
+            
+            carregarAgenda();
+
+        } catch (e) {
+            document.getElementById('agendaEmpty').innerHTML = `<div class="error">Erro ao carregar dados do negócio: ${e.message}</div>`;
+        }
+    }
+
+    async function carregarAgenda() {
+      const data = document.getElementById('data').value;
+      const clienteNome = document.getElementById('clienteNome').value.trim();
+      const clienteTelefone = document.getElementById('clienteTelefone').value.trim();
+      
+      let url = `/booking?negocioId=${encodeURIComponent(NEGOCIO_ID)}&`;
+      if (data) url += `data=${encodeURIComponent(data)}&`;
+      if (clienteNome) url += `clienteNome=${encodeURIComponent(clienteNome)}&`;
+      if (clienteTelefone) url += `clienteTelefone=${encodeURIComponent(clienteTelefone)}&`;
+      
+      try {
+        const res = await apiFetch(url);
+        const agendamentos = res.agendamentos || [];
+        const tbody = document.getElementById('agendaBody');
+        tbody.innerHTML = '';
+
+        if (!agendamentos.length) {
+          document.getElementById('agendaTable').style.display = 'none';
+          document.getElementById('agendaEmpty').innerHTML = '<div class="empty-icon">📅</div><p>Nenhum agendamento encontrado para os filtros selecionados.</p>';
+          document.getElementById('agendaEmpty').style.display = 'block';
+          return;
+        }
+
+        const servicoIds = [...new Set(agendamentos.map(ag => ag.servico_id).filter(Boolean))];
+        let servicosMap = {};
+        if (servicoIds.length) {
+            const servicosResp = await apiFetch(`/servicos?ids=${servicoIds.join(',')}`);
+            (servicosResp.servicos||[]).forEach(s => { servicosMap[s.id] = s.nome; });
+        }
+
+        agendamentos.forEach(ag => {
+          const hora = ag.data_hora?.split('T')[1]?.substring(0,5) || ag.data_hora;
+          const clienteTelefone = ag.cliente_telefone || ag.telefone || '—';
+          const servicoNome = servicosMap[ag.servico_id] || ag.servico_id || '—';
+          tbody.innerHTML += `<tr><td><strong>${hora}</strong></td><td>${ag.cliente_nome||'—'}</td><td>${clienteTelefone}</td><td>${servicoNome}</td><td><span class="badge badge-active">${ag.status||'—'}</span></td><td style="font-size:.8rem">${ag.protocolo||'—'}</td></tr>`;
+        });
+        
+        document.getElementById('agendaTable').style.display = 'table';
+        document.getElementById('agendaEmpty').style.display = 'none';
+      } catch (e) {
+        document.getElementById('agendaTable').style.display = 'none';
+        document.getElementById('agendaEmpty').innerHTML = '<div class="error">Erro ao buscar agendamentos.</div>';
+        document.getElementById('agendaEmpty').style.display = 'block';
+      }
+    }
+
+    document.getElementById('data').onchange = carregarAgenda;
+    document.getElementById('clienteNome').oninput = carregarAgenda;
+    document.getElementById('clienteTelefone').oninput = carregarAgenda;
+
+    init();
+  </script>
 </body>
 </html>
