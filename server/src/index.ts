@@ -15,7 +15,9 @@ import { profileRouter } from "./routes/profile";
 import { negocioRouter } from "./routes/negocio";
 import { calendarioRouter } from "./routes/calendario";
 import { authRouter } from "./routes/auth";
+
 import { servicoRouter } from "./routes/servico";
+import { googleRouter } from "./routes/google";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -127,6 +129,9 @@ app.use("/api", profileRouter);
 app.use("/api", negocioRouter);
 app.use("/api", calendarioRouter);
 app.use("/api", servicoRouter);
+
+// Rotas Google Calendar
+app.use("/api/google", googleRouter);
 
 // Health check
 app.get("/health", (_req, res) => {

@@ -469,6 +469,10 @@
         <div class="form-group"><label>Nicho</label><select id="aNichoId" onchange="carregarAgendamentos()"></select></div>
         <div class="form-group"><label>Data</label><input type="date" id="aData" onchange="carregarAgendamentos()"></div>
       </div>
+      <div class="form-row">
+        <div class="form-group"><label>Cliente (nome)</label><input type="text" id="aClienteNome" placeholder="Buscar por nome" oninput="carregarAgendamentos()"></div>
+        <div class="form-group"><label>Telefone</label><input type="text" id="aClienteTelefone" placeholder="Buscar por telefone" oninput="carregarAgendamentos()"></div>
+      </div>
       <div class="table-scroll">
         <table id="agendamentosTable" style="display:none">
           <thead><tr><th>Hora</th><th>Cliente</th><th>Serviço</th><th>Status</th><th>Protocolo</th></tr></thead>
@@ -530,132 +534,98 @@
       </div>
     </div>
   </div>
-</div>
 
-<script>
-// ========================================================================
-// CONFIG & STATE
-// ========================================================================
-const API_URL = 'https://plataforma-agendamentos-api.onrender.com';
-let AUTH_TOKEN = localStorage.getItem('authToken') || '';
-let CURRENT_USER = JSON.parse(localStorage.getItem('currentUser') || 'null');
-let negociosCache = [];
-let OAUTH_CONFIG = null;
+  <!-- =============================== -->
+  <!-- MINHA AGENDA PRESTADOR (GOOGLE) -->
+  <!-- =============================== -->
+  <div id="sectionAgenda" class="section">
+    <div class="card">
+      <h2>Minha Agenda Google</h2>
+      <div id="googleAgendaAuth">
+        <button class="btn btn-oauth btn-google" onclick="conectarGoogleAgenda()">Conectar com Google</button>
+      </div>
+      <div id="googleAgendaEventos" style="display:none">
+        <h3>Próximos eventos</h3>
+        <div id="eventosLista" class="empty">Carregando...</div>
+        <button class="btn btn-outline" onclick="desconectarGoogleAgenda()">Desconectar</button>
+      </div>
+    </div>
+  </div>
 
-function isAdmin() { return CURRENT_USER && CURRENT_USER.role === 'admin'; }
+  <script>
+    // ========================================================================
+    // CONFIG & STATE
+    // ========================================================================
+    const API_URL = 'https://plataforma-agendamentos-api.onrender.com';
+    let AUTH_TOKEN = localStorage.getItem('authToken') || '';
+    let CURRENT_USER = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    let negociosCache = [];
+    let OAUTH_CONFIG = null;
 
-// ========================================================================
-// OAUTH — Google & Facebook SDK loading
-// ========================================================================
-async function carregarOAuthConfig() {
-  try {
-    const res = await fetch(`${API_URL}/api/auth/oauth-config`);
-    OAUTH_CONFIG = await res.json();
+    function isAdmin() { return CURRENT_USER && CURRENT_USER.role === 'admin'; }
 
-    // Google
-    if (OAUTH_CONFIG.google && OAUTH_CONFIG.googleClientId) {
-      const gsiScript = document.createElement('script');
-      gsiScript.src = 'https://accounts.google.com/gsi/client';
-      gsiScript.async = true;
-      gsiScript.defer = true;
-      gsiScript.onload = () => {
-        window.google.accounts.id.initialize({
-          client_id: OAUTH_CONFIG.googleClientId,
-          callback: handleGoogleResponse,
-          auto_select: false,
-        });
-      };
-      document.head.appendChild(gsiScript);
-      document.querySelectorAll('.btn-google').forEach(b => b.style.display = 'flex');
-    }
-
-    // Facebook
-    if (OAUTH_CONFIG.facebook && OAUTH_CONFIG.facebookAppId) {
-      window.fbAsyncInit = function() {
-        FB.init({ appId: OAUTH_CONFIG.facebookAppId, cookie: true, xfbml: false, version: 'v19.0' });
-      };
-      const fbScript = document.createElement('script');
-      fbScript.src = 'https://connect.facebook.net/pt_BR/sdk.js';
-      fbScript.async = true;
-      fbScript.defer = true;
-      document.head.appendChild(fbScript);
-      document.querySelectorAll('.btn-facebook').forEach(b => b.style.display = 'flex');
-    }
-
-    // Mostrar containers e dividers se algum provider disponível
-    if (OAUTH_CONFIG.google || OAUTH_CONFIG.facebook) {
-      document.querySelectorAll('.oauth-section').forEach(s => s.style.display = 'block');
-      document.querySelectorAll('.oauth-divider').forEach(d => d.style.display = 'block');
-    }
-  } catch (e) {
-    console.warn('OAuth config não disponível:', e);
-  }
-}
-
-async function handleGoogleResponse(response) {
-  document.getElementById('loginError').textContent = '';
-  document.getElementById('loginError').style.color = 'var(--primary)';
-  document.getElementById('loginError').textContent = 'Autenticando com Google...';
-  try {
-    const res = await fetch(`${API_URL}/api/auth/google`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credential: response.credential }),
-    });
-    const data = await res.json();
-    if (!res.ok || data.erro) {
-      document.getElementById('loginError').style.color = '';
-      document.getElementById('loginError').textContent = data.erro || 'Erro na autenticação Google.';
-      return;
-    }
-    AUTH_TOKEN = data.token;
-    CURRENT_USER = data.usuario;
-    localStorage.setItem('authToken', AUTH_TOKEN);
-    localStorage.setItem('currentUser', JSON.stringify(CURRENT_USER));
-    iniciarPainel();
-  } catch (e) {
-    document.getElementById('loginError').style.color = '';
-    document.getElementById('loginError').textContent = 'Erro de conexão ao autenticar com Google.';
-  }
-}
-
-function loginGoogle() {
-  if (!window.google) {
-    document.getElementById('loginError').textContent = 'SDK do Google ainda carregando...';
-    return;
-  }
-  google.accounts.id.prompt((notification) => {
-    if (notification.isNotDisplayed()) {
-      // Fallback: popup manual
-      google.accounts.id.prompt();
-    }
-  });
-}
-
-async function loginFacebook() {
-  if (typeof FB === 'undefined') {
-    document.getElementById('loginError').textContent = 'SDK do Facebook ainda carregando...';
-    return;
-  }
-  document.getElementById('loginError').textContent = '';
-
-  FB.login(async function(response) {
-    if (response.authResponse) {
-      document.getElementById('loginError').style.color = 'var(--primary)';
-      document.getElementById('loginError').textContent = 'Autenticando com Facebook...';
+    // ========================================================================
+    // OAUTH — Google & Facebook SDK loading
+    // ========================================================================
+    async function carregarOAuthConfig() {
       try {
-        const res = await fetch(`${API_URL}/api/auth/facebook`, {
+        const res = await fetch(`${API_URL}/api/auth/oauth-config`);
+        OAUTH_CONFIG = await res.json();
+
+        // Google
+        if (OAUTH_CONFIG.google && OAUTH_CONFIG.googleClientId) {
+          const gsiScript = document.createElement('script');
+          gsiScript.src = 'https://accounts.google.com/gsi/client';
+          gsiScript.async = true;
+          gsiScript.defer = true;
+          gsiScript.onload = () => {
+            window.google.accounts.id.initialize({
+              client_id: OAUTH_CONFIG.googleClientId,
+              callback: handleGoogleResponse,
+              auto_select: false,
+            });
+          };
+          document.head.appendChild(gsiScript);
+          document.querySelectorAll('.btn-google').forEach(b => b.style.display = 'flex');
+        }
+
+        // Facebook
+        if (OAUTH_CONFIG.facebook && OAUTH_CONFIG.facebookAppId) {
+          window.fbAsyncInit = function() {
+            FB.init({ appId: OAUTH_CONFIG.facebookAppId, cookie: true, xfbml: false, version: 'v19.0' });
+          };
+          const fbScript = document.createElement('script');
+          fbScript.src = 'https://connect.facebook.net/pt_BR/sdk.js';
+          fbScript.async = true;
+          fbScript.defer = true;
+          document.head.appendChild(fbScript);
+          document.querySelectorAll('.btn-facebook').forEach(b => b.style.display = 'flex');
+        }
+
+        // Mostrar containers e dividers se algum provider disponível
+        if (OAUTH_CONFIG.google || OAUTH_CONFIG.facebook) {
+          document.querySelectorAll('.oauth-section').forEach(s => s.style.display = 'block');
+          document.querySelectorAll('.oauth-divider').forEach(d => d.style.display = 'block');
+        }
+      } catch (e) {
+        console.warn('OAuth config não disponível:', e);
+      }
+    }
+
+    async function handleGoogleResponse(response) {
+      document.getElementById('loginError').textContent = '';
+      document.getElementById('loginError').style.color = 'var(--primary)';
+      document.getElementById('loginError').textContent = 'Autenticando com Google...';
+      try {
+        const res = await fetch(`${API_URL}/api/auth/google`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accessToken: response.authResponse.accessToken,
-            userID: response.authResponse.userID,
-          }),
+          body: JSON.stringify({ credential: response.credential }),
         });
         const data = await res.json();
         if (!res.ok || data.erro) {
           document.getElementById('loginError').style.color = '';
-          document.getElementById('loginError').textContent = data.erro || 'Erro na autenticação Facebook.';
+          document.getElementById('loginError').textContent = data.erro || 'Erro na autenticação Google.';
           return;
         }
         AUTH_TOKEN = data.token;
@@ -665,899 +635,950 @@ async function loginFacebook() {
         iniciarPainel();
       } catch (e) {
         document.getElementById('loginError').style.color = '';
-        document.getElementById('loginError').textContent = 'Erro de conexão ao autenticar com Facebook.';
+        document.getElementById('loginError').textContent = 'Erro de conexão ao autenticar com Google.';
       }
-    } else {
-      document.getElementById('loginError').textContent = 'Login com Facebook cancelado.';
     }
-  }, { scope: 'email,public_profile' });
-}
 
-// Carregar config OAuth ao iniciar
-carregarOAuthConfig();
+    function loginGoogle() {
+      if (!window.google) {
+        document.getElementById('loginError').textContent = 'SDK do Google ainda carregando...';
+        return;
+      }
+      google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed()) {
+          // Fallback: popup manual
+          google.accounts.id.prompt();
+        }
+      });
+    }
 
-// ========================================================================
-// LOGIN / REGISTER / LOGOUT
-// ========================================================================
-function switchLoginTab(tab) {
-  document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
-  document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
-  document.getElementById('loginError').textContent = '';
-}
+    async function loginFacebook() {
+      if (typeof FB === 'undefined') {
+        document.getElementById('loginError').textContent = 'SDK do Facebook ainda carregando...';
+        return;
+      }
+      document.getElementById('loginError').textContent = '';
 
-async function fazerLogin() {
-  const btn = document.getElementById('btnLogin');
-  btn.disabled = true;
-  document.getElementById('loginError').textContent = '';
-  try {
-    const res = await fetch(`${API_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: document.getElementById('lEmail').value.trim(),
-        senha: document.getElementById('lSenha').value,
-      }),
+      FB.login(async function(response) {
+        if (response.authResponse) {
+          document.getElementById('loginError').style.color = 'var(--primary)';
+          document.getElementById('loginError').textContent = 'Autenticando com Facebook...';
+          try {
+            const res = await fetch(`${API_URL}/api/auth/facebook`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                accessToken: response.authResponse.accessToken,
+                userID: response.authResponse.userID,
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.erro) {
+              document.getElementById('loginError').style.color = '';
+              document.getElementById('loginError').textContent = data.erro || 'Erro na autenticação Facebook.';
+              return;
+            }
+            AUTH_TOKEN = data.token;
+            CURRENT_USER = data.usuario;
+            localStorage.setItem('authToken', AUTH_TOKEN);
+            localStorage.setItem('currentUser', JSON.stringify(CURRENT_USER));
+            iniciarPainel();
+          } catch (e) {
+            document.getElementById('loginError').style.color = '';
+            document.getElementById('loginError').textContent = 'Erro de conexão ao autenticar com Facebook.';
+          }
+        } else {
+          document.getElementById('loginError').textContent = 'Login com Facebook cancelado.';
+        }
+      }, { scope: 'email,public_profile' });
+    }
+
+    // Carregar config OAuth ao iniciar
+    carregarOAuthConfig();
+
+    // ========================================================================
+    // LOGIN / REGISTER / LOGOUT
+    // ========================================================================
+    function switchLoginTab(tab) {
+      document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+      document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+      document.getElementById('loginError').textContent = '';
+    }
+
+    async function fazerLogin() {
+      const btn = document.getElementById('btnLogin');
+      btn.disabled = true;
+      document.getElementById('loginError').textContent = '';
+      try {
+        const res = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('lEmail').value.trim(),
+            senha: document.getElementById('lSenha').value,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.erro) {
+          document.getElementById('loginError').textContent = data.erro || 'Erro no login.';
+          return;
+        }
+        AUTH_TOKEN = data.token;
+        CURRENT_USER = data.usuario;
+        localStorage.setItem('authToken', AUTH_TOKEN);
+        localStorage.setItem('currentUser', JSON.stringify(CURRENT_USER));
+        iniciarPainel();
+      } catch (e) {
+        document.getElementById('loginError').textContent = 'Erro de conexão com a API.';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function fazerRegistro() {
+      const btn = document.getElementById('btnRegister');
+      btn.disabled = true;
+      document.getElementById('loginError').textContent = '';
+      try {
+        const res = await fetch(`${API_URL}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nome: document.getElementById('rNome').value.trim(),
+            email: document.getElementById('rEmail').value.trim(),
+            senha: document.getElementById('rSenha').value,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.erro) {
+          document.getElementById('loginError').textContent = data.erro || 'Erro no registro.';
+          return;
+        }
+        // Auto-login após registro
+        document.getElementById('lEmail').value = document.getElementById('rEmail').value;
+        document.getElementById('lSenha').value = document.getElementById('rSenha').value;
+        switchLoginTab('login');
+        document.getElementById('loginError').textContent = '';
+        document.getElementById('loginError').style.color = 'var(--success)';
+        document.getElementById('loginError').textContent = data.mensagem || 'Conta criada! Fazendo login...';
+        setTimeout(() => fazerLogin(), 1000);
+      } catch (e) {
+        document.getElementById('loginError').textContent = 'Erro de conexão com a API.';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function logout() {
+      AUTH_TOKEN = '';
+      CURRENT_USER = null;
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('currentUser');
+      document.getElementById('loginOverlay').classList.remove('hidden');
+      document.getElementById('navbar').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'none';
+      document.getElementById('loginError').textContent = '';
+      document.getElementById('loginError').style.color = '';
+    }
+
+    // Enter key for login/register
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !document.getElementById('loginOverlay').classList.contains('hidden')) {
+        if (document.getElementById('loginForm').style.display !== 'none') fazerLogin();
+        else fazerRegistro();
+      }
     });
-    const data = await res.json();
-    if (!res.ok || data.erro) {
-      document.getElementById('loginError').textContent = data.erro || 'Erro no login.';
-      return;
+
+    // ========================================================================
+    // INIT PANEL
+    // ========================================================================
+    function iniciarPainel() {
+      console.log('[ADMIN] iniciarPainel() chamado. CURRENT_USER:', JSON.stringify(CURRENT_USER));
+      document.getElementById('loginOverlay').classList.add('hidden');
+      document.getElementById('navbar').style.display = 'flex';
+      document.getElementById('mainContent').style.display = 'block';
+
+      // User info
+      document.getElementById('userName').textContent = CURRENT_USER.nome || CURRENT_USER.email;
+      document.getElementById('userBadge').textContent = isAdmin() ? '👑 ADMIN' : '👤 USUÁRIO';
+      document.getElementById('userBadge').className = 'user-badge';
+
+      // Avatar (OAuth)
+      const avatar = document.getElementById('userAvatar');
+      if (CURRENT_USER.avatarUrl) {
+        avatar.src = CURRENT_USER.avatarUrl;
+        avatar.style.display = 'inline-block';
+      } else {
+        avatar.style.display = 'none';
+      }
+
+      // Show/hide admin-only elements
+      document.querySelectorAll('.admin-only').forEach(el => {
+        el.style.display = isAdmin() ? '' : 'none';
+      });
+
+      verificarConexao();
+      carregarNegocios();
     }
-    AUTH_TOKEN = data.token;
-    CURRENT_USER = data.usuario;
-    localStorage.setItem('authToken', AUTH_TOKEN);
-    localStorage.setItem('currentUser', JSON.stringify(CURRENT_USER));
-    iniciarPainel();
-  } catch (e) {
-    document.getElementById('loginError').textContent = 'Erro de conexão com a API.';
-  } finally {
-    btn.disabled = false;
-  }
-}
 
-async function fazerRegistro() {
-  const btn = document.getElementById('btnRegister');
-  btn.disabled = true;
-  document.getElementById('loginError').textContent = '';
-  try {
-    const res = await fetch(`${API_URL}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nome: document.getElementById('rNome').value.trim(),
-        email: document.getElementById('rEmail').value.trim(),
-        senha: document.getElementById('rSenha').value,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok || data.erro) {
-      document.getElementById('loginError').textContent = data.erro || 'Erro no registro.';
-      return;
+    // ========================================================================
+    // API HELPERS
+    // ========================================================================
+    async function apiFetch(path, opts = {}) {
+      const headers = { 'Content-Type': 'application/json', ...opts.headers };
+      if (AUTH_TOKEN) headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
+      const res = await fetch(`${API_URL}/api${path}`, { ...opts, headers });
+      if (res.status === 401) { logout(); throw new Error('Sessão expirada.'); }
+      return res.json();
     }
-    // Auto-login após registro
-    document.getElementById('lEmail').value = document.getElementById('rEmail').value;
-    document.getElementById('lSenha').value = document.getElementById('rSenha').value;
-    switchLoginTab('login');
-    document.getElementById('loginError').textContent = '';
-    document.getElementById('loginError').style.color = 'var(--success)';
-    document.getElementById('loginError').textContent = data.mensagem || 'Conta criada! Fazendo login...';
-    setTimeout(() => fazerLogin(), 1000);
-  } catch (e) {
-    document.getElementById('loginError').textContent = 'Erro de conexão com a API.';
-  } finally {
-    btn.disabled = false;
-  }
-}
 
-function logout() {
-  AUTH_TOKEN = '';
-  CURRENT_USER = null;
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('currentUser');
-  document.getElementById('loginOverlay').classList.remove('hidden');
-  document.getElementById('navbar').style.display = 'none';
-  document.getElementById('mainContent').style.display = 'none';
-  document.getElementById('loginError').textContent = '';
-  document.getElementById('loginError').style.color = '';
-}
+    async function verificarConexao() {
+      const el = document.getElementById('apiStatus');
+      try {
+        const r = await fetch(`${API_URL}/health`);
+        const j = await r.json();
+        el.textContent = j.status === 'ok' ? '🟢 Conectado' : '🔴 Erro';
+      } catch { el.textContent = '🔴 Desconectado'; }
+    }
 
-// Enter key for login/register
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !document.getElementById('loginOverlay').classList.contains('hidden')) {
-    if (document.getElementById('loginForm').style.display !== 'none') fazerLogin();
-    else fazerRegistro();
-  }
-});
+    // ========================================================================
+    // ALERTS
+    // ========================================================================
+    function showAlert(type, msg) {
+      const el = document.getElementById(type === 'success' ? 'alertSuccess' : 'alertError');
+      el.textContent = msg; el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 5000);
+    }
 
-// ========================================================================
-// INIT PANEL
-// ========================================================================
-function iniciarPainel() {
-  console.log('[ADMIN] iniciarPainel() chamado. CURRENT_USER:', JSON.stringify(CURRENT_USER));
-  document.getElementById('loginOverlay').classList.add('hidden');
-  document.getElementById('navbar').style.display = 'flex';
-  document.getElementById('mainContent').style.display = 'block';
+    // ========================================================================
+    // TABS
+    // ========================================================================
+    function showSection(name, btn) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.getElementById(`sec-${name}`).classList.add('active');
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      if (name === 'personalizacao') populateNegocioSelect('pNegocioId');
+      if (name === 'servicos') populateNichoSelect('sNichoId');
+      if (name === 'agendamentos') { populateNichoSelect('aNichoId'); setDefaultDate(); }
+      if (name === 'integracoes') populateNegocioSelect('iNegocioId');
+      if (name === 'usuarios' && isAdmin()) carregarUsuarios();
+    }
 
-  // User info
-  document.getElementById('userName').textContent = CURRENT_USER.nome || CURRENT_USER.email;
-  document.getElementById('userBadge').textContent = isAdmin() ? '👑 ADMIN' : '👤 USUÁRIO';
-  document.getElementById('userBadge').className = 'user-badge';
+    // ========================================================================
+    // CEP (ViaCEP)
+    // ========================================================================
+    function formatarCep(input) {
+      let v = input.value.replace(/\D/g, '');
+      if (v.length > 5) v = v.substring(0, 5) + '-' + v.substring(5, 8);
+      input.value = v;
+    }
 
-  // Avatar (OAuth)
-  const avatar = document.getElementById('userAvatar');
-  if (CURRENT_USER.avatarUrl) {
-    avatar.src = CURRENT_USER.avatarUrl;
-    avatar.style.display = 'inline-block';
-  } else {
-    avatar.style.display = 'none';
-  }
+    async function buscarCep(prefix) {
+      const cepRaw = document.getElementById(prefix + 'Cep').value.replace(/\D/g, '');
+      const statusEl = document.getElementById(prefix + 'CepStatus');
+      if (cepRaw.length !== 8) { if (cepRaw.length > 0) statusEl.innerHTML = '<span class="cep-err">CEP incompleto</span>'; return; }
+      statusEl.innerHTML = '<span class="cep-loading">buscando...</span>';
+      try {
+        const resp = await fetch(`https://viacep.com.br/ws/${cepRaw}/json/`);
+        const data = await resp.json();
+        if (data.erro) { statusEl.innerHTML = '<span class="cep-err">CEP não encontrado</span>'; return; }
+        document.getElementById(prefix + 'Endereco').value = data.logradouro || '';
+        document.getElementById(prefix + 'Bairro').value = data.bairro || '';
+        document.getElementById(prefix + 'Cidade').value = data.localidade || '';
+        document.getElementById(prefix + 'Estado').value = data.uf || '';
+        statusEl.innerHTML = '<span class="cep-ok">✓ ' + data.localidade + '/' + data.uf + '</span>';
+      } catch { statusEl.innerHTML = '<span class="cep-err">Erro ao buscar CEP</span>'; }
+    }
 
-  // Show/hide admin-only elements
-  document.querySelectorAll('.admin-only').forEach(el => {
-    el.style.display = isAdmin() ? '' : 'none';
-  });
+    // ========================================================================
+    // NEGÓCIOS
+    // ========================================================================
+    async function carregarNegocios() {
+      const ownerId = CURRENT_USER?.ownerId || CURRENT_USER?.id;
+      console.log('[ADMIN] carregarNegocios() ownerId:', ownerId);
+      if (!ownerId) {
+        console.warn('[ADMIN] ownerId não encontrado, pulando carregamento');
+        negociosCache = [];
+        renderNegocios();
+        return;
+      }
+      try {
+        const data = await apiFetch(`/negocios/${ownerId}`);
+        negociosCache = data.negocios || [];
+        renderNegocios();
+      } catch (e) {
+        console.error('[ADMIN] Erro ao carregar negócios:', e);
+        showAlert('error', 'Erro ao carregar negócios: ' + e.message);
+        negociosCache = [];
+        renderNegocios();
+      }
+    }
 
-  verificarConexao();
-  carregarNegocios();
-}
+    function renderNegocios() {
+      const el = document.getElementById('negociosList');
+      if (!negociosCache.length) {
+        el.innerHTML = '<div class="empty"><div class="empty-icon">🏢</div><p>Nenhum negócio cadastrado ainda.</p></div>';
+        return;
+      }
+      const baseUrl = 'https://exosoft-com-br.github.io/plataforma-agendamentos/';
+      el.innerHTML = negociosCache.map((n, idx) => {
+        const nome = n.nomeFantasia || '';
+        const nicho = n.nichoId || '';
+        const tel = n.telefoneComercial || '';
+        const end = n.endereco || '';
+        const bairro = n.bairro || '';
+        const cidade = n.cidade || '';
+        const estado = n.estado || '';
+        const ativo = n.ativo !== false;
+        const desc = n.descricao || '';
+        const cnpj = n.cnpjCpf || '';
+        const linkAgendamento = `${baseUrl}?negocio=${n.id}`;
 
-// ========================================================================
-// API HELPERS
-// ========================================================================
-async function apiFetch(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json', ...opts.headers };
-  if (AUTH_TOKEN) headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
-  const res = await fetch(`${API_URL}/api${path}`, { ...opts, headers });
-  if (res.status === 401) { logout(); throw new Error('Sessão expirada.'); }
-  return res.json();
-}
+        let endCompleto = [end, bairro].filter(Boolean).join(', ');
+        if (cidade) endCompleto += (endCompleto ? ' — ' : '') + cidade;
+        if (estado) endCompleto += '/' + estado;
 
-async function verificarConexao() {
-  const el = document.getElementById('apiStatus');
-  try {
-    const r = await fetch(`${API_URL}/health`);
-    const j = await r.json();
-    el.textContent = j.status === 'ok' ? '🟢 Conectado' : '🔴 Erro';
-  } catch { el.textContent = '🔴 Desconectado'; }
-}
+        const deleteBtn = isAdmin()
+          ? `<button class="btn btn-danger btn-sm" onclick="excluirNegocio('${n.id}','${nome}')">🗑 Excluir</button>`
+          : '';
 
-// ========================================================================
-// ALERTS
-// ========================================================================
-function showAlert(type, msg) {
-  const el = document.getElementById(type === 'success' ? 'alertSuccess' : 'alertError');
-  el.textContent = msg; el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 5000);
-}
+        return `
+          <div class="negocio-card">
+            <div class="negocio-header">
+              <div class="negocio-info">
+                <div style="font-weight:700;font-size:1.05rem">${nome}</div>
+                <div class="negocio-detail">Nicho: <strong>${nicho}</strong> · ${ativo ? '🟢 Ativo' : '🔴 Inativo'}</div>
+                ${desc ? `<div class="negocio-detail">📝 ${desc}</div>` : ''}
+                ${tel ? `<div class="negocio-detail">📞 ${tel}</div>` : ''}
+                ${endCompleto ? `<div class="negocio-detail">📍 ${endCompleto}</div>` : ''}
+                ${cnpj ? `<div class="negocio-detail">🏷 CNPJ/CPF: ${cnpj}</div>` : ''}
+                <div class="negocio-detail" style="margin-top:8px">
+                  🔗 <strong>Link de agendamento:</strong>
+                  <input type="text" value="${linkAgendamento}" readonly onclick="this.select();document.execCommand('copy');showAlert('success','Link copiado!')" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;font-size:.8rem;cursor:pointer;margin-top:4px" title="Clique para copiar">
+                </div>
+              </div>
+              <div class="negocio-actions">
+                <button class="btn btn-outline btn-sm" onclick="window.open('${linkAgendamento}','_blank')">🌐 Abrir</button>
+                <button class="btn btn-outline btn-sm" onclick="toggleEditarNegocio(${idx})">✏️ Editar</button>
+                ${deleteBtn}
+              </div>
+            </div>
+            <div class="editar-form" id="editForm-${idx}" style="display:none"></div>
+          </div>`;
+      }).join('');
+    }
 
-// ========================================================================
-// TABS
-// ========================================================================
-function showSection(name, btn) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById(`sec-${name}`).classList.add('active');
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  if (name === 'personalizacao') populateNegocioSelect('pNegocioId');
-  if (name === 'servicos') populateNichoSelect('sNichoId');
-  if (name === 'agendamentos') { populateNichoSelect('aNichoId'); setDefaultDate(); }
-  if (name === 'integracoes') populateNegocioSelect('iNegocioId');
-  if (name === 'usuarios' && isAdmin()) carregarUsuarios();
-}
+    function toggleEditarNegocio(idx) {
+      const formEl = document.getElementById(`editForm-${idx}`);
+      if (formEl.style.display !== 'none') { formEl.style.display = 'none'; return; }
+      const n = negociosCache[idx];
+      formEl.innerHTML = `
+        <div class="form-group"><label>Nome Fantasia</label><input type="text" id="e${idx}Nome" value="${n.nomeFantasia || ''}"></div>
+        <div class="form-group"><label>Descrição</label><textarea id="e${idx}Desc" rows="2">${n.descricao || ''}</textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label>Telefone</label><input type="tel" id="e${idx}Tel" value="${n.telefoneComercial || ''}"></div>
+          <div class="form-group"><label>CNPJ/CPF</label><input type="text" id="e${idx}Cnpj" value="${n.cnpjCpf || ''}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>CEP (busca endereço) <span id="e${idx}CepStatus"></span></label><input type="text" id="e${idx}Cep" value="" maxlength="9" oninput="formatarCep(this)" onblur="buscarCep('e${idx}')"></div>
+          <div class="form-group"><label>Endereço</label><input type="text" id="e${idx}Endereco" value="${n.endereco || ''}"></div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group"><label>Bairro</label><input type="text" id="e${idx}Bairro" value="${n.bairro || ''}"></div>
+          <div class="form-group"><label>Cidade</label><input type="text" id="e${idx}Cidade" value="${n.cidade || ''}"></div>
+          <div class="form-group"><label>UF</label><input type="text" id="e${idx}Estado" value="${n.estado || ''}" maxlength="2" style="text-transform:uppercase"></div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-success btn-sm" onclick="salvarEdicao(${idx})">💾 Salvar</button>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('editForm-${idx}').style.display='none'">Cancelar</button>
+        </div>`;
+      formEl.style.display = 'block';
+    }
 
-// ========================================================================
-// CEP (ViaCEP)
-// ========================================================================
-function formatarCep(input) {
-  let v = input.value.replace(/\D/g, '');
-  if (v.length > 5) v = v.substring(0, 5) + '-' + v.substring(5, 8);
-  input.value = v;
-}
+    async function salvarEdicao(idx) {
+      const n = negociosCache[idx];
+      try {
+        const body = {
+          nomeFantasia: document.getElementById(`e${idx}Nome`).value.trim(),
+          descricao: document.getElementById(`e${idx}Desc`).value.trim(),
+          telefoneComercial: document.getElementById(`e${idx}Tel`).value.trim(),
+          cnpjCpf: document.getElementById(`e${idx}Cnpj`).value.trim(),
+          endereco: document.getElementById(`e${idx}Endereco`).value.trim(),
+          bairro: document.getElementById(`e${idx}Bairro`).value.trim(),
+          cidade: document.getElementById(`e${idx}Cidade`).value.trim(),
+          estado: document.getElementById(`e${idx}Estado`).value.trim().toUpperCase(),
+        };
+        const data = await apiFetch(`/negocios/${n.id}`, { method: 'PUT', body: JSON.stringify(body) });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', 'Negócio atualizado com sucesso!');
+        carregarNegocios();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
 
-async function buscarCep(prefix) {
-  const cepRaw = document.getElementById(prefix + 'Cep').value.replace(/\D/g, '');
-  const statusEl = document.getElementById(prefix + 'CepStatus');
-  if (cepRaw.length !== 8) { if (cepRaw.length > 0) statusEl.innerHTML = '<span class="cep-err">CEP incompleto</span>'; return; }
-  statusEl.innerHTML = '<span class="cep-loading">buscando...</span>';
-  try {
-    const resp = await fetch(`https://viacep.com.br/ws/${cepRaw}/json/`);
-    const data = await resp.json();
-    if (data.erro) { statusEl.innerHTML = '<span class="cep-err">CEP não encontrado</span>'; return; }
-    document.getElementById(prefix + 'Endereco').value = data.logradouro || '';
-    document.getElementById(prefix + 'Bairro').value = data.bairro || '';
-    document.getElementById(prefix + 'Cidade').value = data.localidade || '';
-    document.getElementById(prefix + 'Estado').value = data.uf || '';
-    statusEl.innerHTML = '<span class="cep-ok">✓ ' + data.localidade + '/' + data.uf + '</span>';
-  } catch { statusEl.innerHTML = '<span class="cep-err">Erro ao buscar CEP</span>'; }
-}
+    async function excluirNegocio(id, nome) {
+      if (!confirm(`Excluir "${nome}"? Esta ação não pode ser desfeita.`)) return;
+      try {
+        const data = await apiFetch(`/negocios/${id}`, { method: 'DELETE' });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', `"${nome}" excluído com sucesso.`);
+        carregarNegocios();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
 
-// ========================================================================
-// NEGÓCIOS
-// ========================================================================
-async function carregarNegocios() {
-  const ownerId = CURRENT_USER?.ownerId || CURRENT_USER?.id;
-  console.log('[ADMIN] carregarNegocios() ownerId:', ownerId);
-  if (!ownerId) {
-    console.warn('[ADMIN] ownerId não encontrado, pulando carregamento');
-    negociosCache = [];
-    renderNegocios();
-    return;
-  }
-  try {
-    const data = await apiFetch(`/negocios/${ownerId}`);
-    negociosCache = data.negocios || [];
-    renderNegocios();
-  } catch (e) {
-    console.error('[ADMIN] Erro ao carregar negócios:', e);
-    showAlert('error', 'Erro ao carregar negócios: ' + e.message);
-    negociosCache = [];
-    renderNegocios();
-  }
-}
+    function toggleNovoNegocio() {
+      const f = document.getElementById('formNovoNegocio');
+      f.style.display = f.style.display === 'none' ? 'block' : 'none';
+    }
 
-function renderNegocios() {
-  const el = document.getElementById('negociosList');
-  if (!negociosCache.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">🏢</div><p>Nenhum negócio cadastrado ainda.</p></div>';
-    return;
-  }
-  const baseUrl = 'https://exosoft-com-br.github.io/plataforma-agendamentos/';
-  el.innerHTML = negociosCache.map((n, idx) => {
-    const nome = n.nomeFantasia || '';
-    const nicho = n.nichoId || '';
-    const tel = n.telefoneComercial || '';
-    const end = n.endereco || '';
-    const bairro = n.bairro || '';
-    const cidade = n.cidade || '';
-    const estado = n.estado || '';
-    const ativo = n.ativo !== false;
-    const desc = n.descricao || '';
-    const cnpj = n.cnpjCpf || '';
-    const linkAgendamento = `${baseUrl}?negocio=${n.id}`;
+    async function criarNegocio() {
+      try {
+        const body = {
+          ownerId: CURRENT_USER.ownerId,
+          nichoId: document.getElementById('nNichoId').value.trim(),
+          nomeFantasia: document.getElementById('nNomeFantasia').value.trim(),
+          descricao: document.getElementById('nDescricao').value.trim(),
+          telefoneComercial: document.getElementById('nTelefone').value.trim(),
+          cnpjCpf: document.getElementById('nCnpjCpf').value.trim(),
+          endereco: document.getElementById('nEndereco').value.trim(),
+          bairro: document.getElementById('nBairro').value.trim(),
+          cidade: document.getElementById('nCidade').value.trim(),
+          estado: document.getElementById('nEstado').value.trim().toUpperCase(),
+        };
+        if (!body.nichoId || !body.nomeFantasia) { showAlert('error', 'Nicho e Nome Fantasia são obrigatórios.'); return; }
+        const data = await apiFetch('/negocios', { method: 'POST', body: JSON.stringify(body) });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        
+        // Gerar link personalizado
+        const baseUrl = 'https://exosoft-com-br.github.io/plataforma-agendamentos/';
+        const linkAgendamento = `${baseUrl}?negocio=${data.negocio.id}`;
+        
+        // Mostrar modal com o link
+        mostrarModalLink(body.nomeFantasia, linkAgendamento);
+        
+        toggleNovoNegocio();
+        ['nNichoId','nNomeFantasia','nDescricao','nTelefone','nCnpjCpf','nCep','nEndereco','nBairro','nCidade','nEstado'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+        const cepSt = document.getElementById('nCepStatus'); if(cepSt) cepSt.innerHTML = '';
+        carregarNegocios();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
 
-    let endCompleto = [end, bairro].filter(Boolean).join(', ');
-    if (cidade) endCompleto += (endCompleto ? ' — ' : '') + cidade;
-    if (estado) endCompleto += '/' + estado;
+    function mostrarModalLink(nomeNegocio, link) {
+      // Remover modal existente se houver
+      const existente = document.getElementById('modalLink');
+      if (existente) existente.remove();
+      
+      const modal = document.createElement('div');
+      modal.id = 'modalLink';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:10000;';
+      modal.innerHTML = `
+        <div style="background:#fff;border-radius:16px;padding:32px;max-width:520px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+          <div style="font-size:3rem;margin-bottom:12px;">🎉</div>
+          <h2 style="color:var(--primary);margin-bottom:8px;">Negócio Criado!</h2>
+          <p style="color:#666;margin-bottom:20px;">"${nomeNegocio}" está pronto para receber agendamentos.</p>
+          <label style="display:block;text-align:left;font-weight:600;margin-bottom:6px;color:#333;">🔗 Link de Agendamento:</label>
+          <div style="display:flex;gap:8px;margin-bottom:20px;">
+            <input type="text" id="linkCriado" value="${link}" readonly style="flex:1;padding:12px;border:2px solid var(--primary);border-radius:8px;font-size:.9rem;background:#f9f9ff;">
+            <button onclick="copiarLinkCriado()" style="padding:12px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">📋 Copiar</button>
+          </div>
+          <div style="display:flex;gap:12px;justify-content:center;">
+            <button onclick="window.open('${link}','_blank')" style="padding:12px 24px;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">🌐 Abrir Link</button>
+            <button onclick="document.getElementById('modalLink').remove()" style="padding:12px 24px;background:#f0f0f0;color:#333;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Fechar</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
 
-    const deleteBtn = isAdmin()
-      ? `<button class="btn btn-danger btn-sm" onclick="excluirNegocio('${n.id}','${nome}')">🗑 Excluir</button>`
-      : '';
+    function copiarLinkCriado() {
+      const input = document.getElementById('linkCriado');
+      input.select();
+      document.execCommand('copy');
+      showAlert('success', 'Link copiado para a área de transferência!');
+    }
 
-    return `
-      <div class="negocio-card">
-        <div class="negocio-header">
-          <div class="negocio-info">
-            <div style="font-weight:700;font-size:1.05rem">${nome}</div>
-            <div class="negocio-detail">Nicho: <strong>${nicho}</strong> · ${ativo ? '🟢 Ativo' : '🔴 Inativo'}</div>
-            ${desc ? `<div class="negocio-detail">📝 ${desc}</div>` : ''}
-            ${tel ? `<div class="negocio-detail">📞 ${tel}</div>` : ''}
-            ${endCompleto ? `<div class="negocio-detail">📍 ${endCompleto}</div>` : ''}
-            ${cnpj ? `<div class="negocio-detail">🏷 CNPJ/CPF: ${cnpj}</div>` : ''}
-            <div class="negocio-detail" style="margin-top:8px">
-              🔗 <strong>Link de agendamento:</strong>
-              <input type="text" value="${linkAgendamento}" readonly onclick="this.select();document.execCommand('copy');showAlert('success','Link copiado!')" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;font-size:.8rem;cursor:pointer;margin-top:4px" title="Clique para copiar">
+    // ========================================================================
+    // PERSONALIZAÇÃO
+    // ========================================================================
+    function populateNegocioSelect(selectId) {
+      const sel = document.getElementById(selectId);
+      sel.innerHTML = negociosCache.length
+        ? negociosCache.map(n => `<option value="${n.id}">${n.nomeFantasia} (${n.nichoId})</option>`).join('')
+        : '<option value="">Nenhum negócio</option>';
+      if (selectId === 'pNegocioId' && negociosCache.length) carregarPersonalizacao();
+      if (selectId === 'iNegocioId' && negociosCache.length) carregarIntegracoes();
+    }
+
+    function syncColor(textId, value) { document.getElementById(textId).value = value; atualizarPreview(); }
+    function syncColorPicker(pickerId, value) { if (/^#[0-9a-fA-F]{6}$/.test(value)) { document.getElementById(pickerId).value = value; atualizarPreview(); } }
+
+    async function carregarPersonalizacao() {
+      const negocioId = document.getElementById('pNegocioId').value;
+      if (!negocioId) return;
+      try {
+        const p = await apiFetch(`/negocios/${negocioId}/personalizacao`);
+        setField('pCorPrimaria', p.corPrimaria); setField('pCorPrimariaColor', p.corPrimaria);
+        setField('pCorSecundaria', p.corSecundaria); setField('pCorSecundariaColor', p.corSecundaria);
+        setField('pCorTexto', p.corTexto); setField('pCorTextoColor', p.corTexto);
+        setField('pCorFundo', p.corFundo); setField('pCorFundoColor', p.corFundo);
+        setField('pCorBotao', p.corBotao); setField('pCorBotaoColor', p.corBotao);
+        setField('pCorBotaoTexto', p.corBotaoTexto); setField('pCorBotaoTextoColor', p.corBotaoTexto);
+        setSelect('pFonteTitulo', p.fonteTitulo || 'Segoe UI');
+        setSelect('pFonteCorpo', p.fonteCorpo || 'Segoe UI');
+        setField('pLogoUrl', p.logoUrl || ''); setField('pBannerUrl', p.bannerUrl || ''); setField('pFaviconUrl', p.faviconUrl || '');
+        atualizarPreview();
+      } catch (e) { console.warn('Erro personalização:', e); }
+    }
+
+    function setField(id, val) { const el = document.getElementById(id); if (el) el.value = val || ''; }
+    function setSelect(id, val) { const el = document.getElementById(id); if (el) { el.value = val; if (!el.value) el.value = el.options[0]?.value || ''; } }
+
+    function atualizarPreview() {
+      const cp = document.getElementById('pCorPrimaria').value, cs = document.getElementById('pCorSecundaria').value;
+      const ct = document.getElementById('pCorTexto').value, cf = document.getElementById('pCorFundo').value;
+      const cb = document.getElementById('pCorBotao').value, cbt = document.getElementById('pCorBotaoTexto').value;
+      const logo = document.getElementById('pLogoUrl').value;
+      document.getElementById('previewHeader').style.background = `linear-gradient(135deg,${cp},${cs})`;
+      document.getElementById('previewHeader').style.color = ct;
+      document.getElementById('previewBody').style.background = cf;
+      document.getElementById('previewBtn').style.background = `linear-gradient(135deg,${cb},${cs})`;
+      document.getElementById('previewBtn').style.color = cbt;
+      document.getElementById('previewLogo').innerHTML = logo ? `<img src="${logo}" style="max-height:36px;border-radius:6px;margin-bottom:4px" onerror="this.style.display='none'">` : '';
+    }
+
+    async function salvarPersonalizacao() {
+      const negocioId = document.getElementById('pNegocioId').value;
+      if (!negocioId) { showAlert('error', 'Selecione um negócio.'); return; }
+      try {
+        const body = {
+          corPrimaria: document.getElementById('pCorPrimaria').value,
+          corSecundaria: document.getElementById('pCorSecundaria').value,
+          corTexto: document.getElementById('pCorTexto').value,
+          corFundo: document.getElementById('pCorFundo').value,
+          corBotao: document.getElementById('pCorBotao').value,
+          corBotaoTexto: document.getElementById('pCorBotaoTexto').value,
+          fonteTitulo: document.getElementById('pFonteTitulo').value,
+          fonteCorpo: document.getElementById('pFonteCorpo').value,
+          logoUrl: document.getElementById('pLogoUrl').value || undefined,
+          bannerUrl: document.getElementById('pBannerUrl').value || undefined,
+          faviconUrl: document.getElementById('pFaviconUrl').value || undefined,
+        };
+        const data = await apiFetch(`/negocios/${negocioId}/personalizacao`, { method: 'PUT', body: JSON.stringify(body) });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', 'Personalização salva!');
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    // ========================================================================
+    // SERVIÇOS & PRESTADORES — CRUD COMPLETO
+    // ========================================================================
+    let prestadoresCache = [];
+    let servicosCache = [];
+
+    function populateNichoSelect(selectId) {
+      const nichos = [...new Set(negociosCache.map(n => n.nichoId).filter(Boolean))];
+      const sel = document.getElementById(selectId);
+      sel.innerHTML = nichos.length ? nichos.map(n => `<option value="${n}">${n}</option>`).join('') : '<option value="">Nenhum nicho</option>';
+      if (selectId === 'sNichoId' && nichos.length) carregarPrestadoresServicos();
+      if (selectId === 'aNichoId' && nichos.length) carregarAgendamentos();
+    }
+
+    async function carregarPrestadoresServicos() {
+      const nichoId = document.getElementById('sNichoId').value;
+      if (!nichoId) return;
+      try {
+        const [pData, sData] = await Promise.all([
+          apiFetch(`/prestadores?nichoId=${nichoId}`),
+          apiFetch(`/servicos?nichoId=${nichoId}`)
+        ]);
+        prestadoresCache = pData.prestadores || [];
+        servicosCache = sData.servicos || [];
+        renderPrestadores();
+        renderServicos();
+        populatePrestadorSelect();
+      } catch (e) { showAlert('error', 'Erro ao carregar: ' + e.message); }
+    }
+
+    function renderPrestadores() {
+      const el = document.getElementById('prestadoresList');
+      const empty = document.getElementById('prestadoresEmpty');
+      if (!prestadoresCache.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+      const diasNomes = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+      el.innerHTML = prestadoresCache.map((p, idx) => {
+        const dias = (p.diasSemana || []).map(d => diasNomes[d] || d).join(', ');
+        return `
+          <div class="negocio-card" style="margin-bottom:8px">
+            <div class="negocio-header">
+              <div class="negocio-info">
+                <div style="font-weight:700">${p.nome}</div>
+                <div class="negocio-detail">${p.categoria || 'Sem categoria'} · ${p.horarioInicio || '08:00'}–${p.horarioFim || '18:00'} · ${dias}</div>
+                <div class="negocio-detail" style="font-size:.8rem;color:var(--text-light)">ID: ${p.id}</div>
+              </div>
+              <div class="negocio-actions">
+                <span class="badge ${p.ativo !== false ? 'badge-active' : 'badge-error'}">${p.ativo !== false ? 'Ativo' : 'Inativo'}</span>
+                <button class="btn btn-outline btn-sm" onclick="toggleEditarPrestador(${idx})">✏️</button>
+                <button class="btn btn-danger btn-sm" onclick="excluirPrestador('${p.id}','${p.nome}')">🗑</button>
+              </div>
+            </div>
+            <div id="editPrest-${idx}" style="display:none"></div>
+          </div>`;
+      }).join('');
+    }
+
+    function toggleEditarPrestador(idx) {
+      const el = document.getElementById(`editPrest-${idx}`);
+      if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+      const p = prestadoresCache[idx];
+      const diasNums = p.diasSemana || [1,2,3,4,5];
+      el.innerHTML = `
+        <div style="padding:12px;border-top:1px solid var(--border)">
+          <div class="form-row">
+            <div class="form-group"><label>Nome</label><input type="text" id="ep${idx}Nome" value="${p.nome || ''}"></div>
+            <div class="form-group"><label>Categoria</label><input type="text" id="ep${idx}Cat" value="${p.categoria || ''}"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Início</label><input type="time" id="ep${idx}HI" value="${p.horarioInicio || '08:00'}"></div>
+            <div class="form-group"><label>Fim</label><input type="time" id="ep${idx}HF" value="${p.horarioFim || '18:00'}"></div>
+          </div>
+          <div class="form-group"><label>WhatsApp</label><input type="tel" id="ep${idx}Wpp" value="${p.whatsappNumero || ''}"></div>
+          <div class="form-group">
+            <label>Dias</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              ${[0,1,2,3,4,5,6].map(d => `<label><input type="checkbox" class="ep${idx}-dia" value="${d}" ${diasNums.includes(d)?'checked':''}> ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]}</label>`).join('')}
             </div>
           </div>
-          <div class="negocio-actions">
-            <button class="btn btn-outline btn-sm" onclick="window.open('${linkAgendamento}','_blank')">🌐 Abrir</button>
-            <button class="btn btn-outline btn-sm" onclick="toggleEditarNegocio(${idx})">✏️ Editar</button>
-            ${deleteBtn}
+          <div class="btn-group">
+            <button class="btn btn-success btn-sm" onclick="salvarPrestador(${idx})">💾 Salvar</button>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('editPrest-${idx}').style.display='none'">Cancelar</button>
           </div>
-        </div>
-        <div class="editar-form" id="editForm-${idx}" style="display:none"></div>
-      </div>`;
-  }).join('');
-}
-
-function toggleEditarNegocio(idx) {
-  const formEl = document.getElementById(`editForm-${idx}`);
-  if (formEl.style.display !== 'none') { formEl.style.display = 'none'; return; }
-  const n = negociosCache[idx];
-  formEl.innerHTML = `
-    <div class="form-group"><label>Nome Fantasia</label><input type="text" id="e${idx}Nome" value="${n.nomeFantasia || ''}"></div>
-    <div class="form-group"><label>Descrição</label><textarea id="e${idx}Desc" rows="2">${n.descricao || ''}</textarea></div>
-    <div class="form-row">
-      <div class="form-group"><label>Telefone</label><input type="tel" id="e${idx}Tel" value="${n.telefoneComercial || ''}"></div>
-      <div class="form-group"><label>CNPJ/CPF</label><input type="text" id="e${idx}Cnpj" value="${n.cnpjCpf || ''}"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>CEP (busca endereço) <span id="e${idx}CepStatus"></span></label><input type="text" id="e${idx}Cep" value="" maxlength="9" oninput="formatarCep(this)" onblur="buscarCep('e${idx}')"></div>
-      <div class="form-group"><label>Endereço</label><input type="text" id="e${idx}Endereco" value="${n.endereco || ''}"></div>
-    </div>
-    <div class="form-row-3">
-      <div class="form-group"><label>Bairro</label><input type="text" id="e${idx}Bairro" value="${n.bairro || ''}"></div>
-      <div class="form-group"><label>Cidade</label><input type="text" id="e${idx}Cidade" value="${n.cidade || ''}"></div>
-      <div class="form-group"><label>UF</label><input type="text" id="e${idx}Estado" value="${n.estado || ''}" maxlength="2" style="text-transform:uppercase"></div>
-    </div>
-    <div class="btn-group">
-      <button class="btn btn-success btn-sm" onclick="salvarEdicao(${idx})">💾 Salvar</button>
-      <button class="btn btn-outline btn-sm" onclick="document.getElementById('editForm-${idx}').style.display='none'">Cancelar</button>
-    </div>`;
-  formEl.style.display = 'block';
-}
-
-async function salvarEdicao(idx) {
-  const n = negociosCache[idx];
-  try {
-    const body = {
-      nomeFantasia: document.getElementById(`e${idx}Nome`).value.trim(),
-      descricao: document.getElementById(`e${idx}Desc`).value.trim(),
-      telefoneComercial: document.getElementById(`e${idx}Tel`).value.trim(),
-      cnpjCpf: document.getElementById(`e${idx}Cnpj`).value.trim(),
-      endereco: document.getElementById(`e${idx}Endereco`).value.trim(),
-      bairro: document.getElementById(`e${idx}Bairro`).value.trim(),
-      cidade: document.getElementById(`e${idx}Cidade`).value.trim(),
-      estado: document.getElementById(`e${idx}Estado`).value.trim().toUpperCase(),
-    };
-    const data = await apiFetch(`/negocios/${n.id}`, { method: 'PUT', body: JSON.stringify(body) });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', 'Negócio atualizado com sucesso!');
-    carregarNegocios();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-async function excluirNegocio(id, nome) {
-  if (!confirm(`Excluir "${nome}"? Esta ação não pode ser desfeita.`)) return;
-  try {
-    const data = await apiFetch(`/negocios/${id}`, { method: 'DELETE' });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', `"${nome}" excluído com sucesso.`);
-    carregarNegocios();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-function toggleNovoNegocio() {
-  const f = document.getElementById('formNovoNegocio');
-  f.style.display = f.style.display === 'none' ? 'block' : 'none';
-}
-
-async function criarNegocio() {
-  try {
-    const body = {
-      ownerId: CURRENT_USER.ownerId,
-      nichoId: document.getElementById('nNichoId').value.trim(),
-      nomeFantasia: document.getElementById('nNomeFantasia').value.trim(),
-      descricao: document.getElementById('nDescricao').value.trim(),
-      telefoneComercial: document.getElementById('nTelefone').value.trim(),
-      cnpjCpf: document.getElementById('nCnpjCpf').value.trim(),
-      endereco: document.getElementById('nEndereco').value.trim(),
-      bairro: document.getElementById('nBairro').value.trim(),
-      cidade: document.getElementById('nCidade').value.trim(),
-      estado: document.getElementById('nEstado').value.trim().toUpperCase(),
-    };
-    if (!body.nichoId || !body.nomeFantasia) { showAlert('error', 'Nicho e Nome Fantasia são obrigatórios.'); return; }
-    const data = await apiFetch('/negocios', { method: 'POST', body: JSON.stringify(body) });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    
-    // Gerar link personalizado
-    const baseUrl = 'https://exosoft-com-br.github.io/plataforma-agendamentos/';
-    const linkAgendamento = `${baseUrl}?negocio=${data.negocio.id}`;
-    
-    // Mostrar modal com o link
-    mostrarModalLink(body.nomeFantasia, linkAgendamento);
-    
-    toggleNovoNegocio();
-    ['nNichoId','nNomeFantasia','nDescricao','nTelefone','nCnpjCpf','nCep','nEndereco','nBairro','nCidade','nEstado'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-    const cepSt = document.getElementById('nCepStatus'); if(cepSt) cepSt.innerHTML = '';
-    carregarNegocios();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-function mostrarModalLink(nomeNegocio, link) {
-  // Remover modal existente se houver
-  const existente = document.getElementById('modalLink');
-  if (existente) existente.remove();
-  
-  const modal = document.createElement('div');
-  modal.id = 'modalLink';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:10000;';
-  modal.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:32px;max-width:520px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3);">
-      <div style="font-size:3rem;margin-bottom:12px;">🎉</div>
-      <h2 style="color:var(--primary);margin-bottom:8px;">Negócio Criado!</h2>
-      <p style="color:#666;margin-bottom:20px;">"${nomeNegocio}" está pronto para receber agendamentos.</p>
-      <label style="display:block;text-align:left;font-weight:600;margin-bottom:6px;color:#333;">🔗 Link de Agendamento:</label>
-      <div style="display:flex;gap:8px;margin-bottom:20px;">
-        <input type="text" id="linkCriado" value="${link}" readonly style="flex:1;padding:12px;border:2px solid var(--primary);border-radius:8px;font-size:.9rem;background:#f9f9ff;">
-        <button onclick="copiarLinkCriado()" style="padding:12px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">📋 Copiar</button>
-      </div>
-      <div style="display:flex;gap:12px;justify-content:center;">
-        <button onclick="window.open('${link}','_blank')" style="padding:12px 24px;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">🌐 Abrir Link</button>
-        <button onclick="document.getElementById('modalLink').remove()" style="padding:12px 24px;background:#f0f0f0;color:#333;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Fechar</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-}
-
-function copiarLinkCriado() {
-  const input = document.getElementById('linkCriado');
-  input.select();
-  document.execCommand('copy');
-  showAlert('success', 'Link copiado para a área de transferência!');
-}
-
-// ========================================================================
-// PERSONALIZAÇÃO
-// ========================================================================
-function populateNegocioSelect(selectId) {
-  const sel = document.getElementById(selectId);
-  sel.innerHTML = negociosCache.length
-    ? negociosCache.map(n => `<option value="${n.id}">${n.nomeFantasia} (${n.nichoId})</option>`).join('')
-    : '<option value="">Nenhum negócio</option>';
-  if (selectId === 'pNegocioId' && negociosCache.length) carregarPersonalizacao();
-  if (selectId === 'iNegocioId' && negociosCache.length) carregarIntegracoes();
-}
-
-function syncColor(textId, value) { document.getElementById(textId).value = value; atualizarPreview(); }
-function syncColorPicker(pickerId, value) { if (/^#[0-9a-fA-F]{6}$/.test(value)) { document.getElementById(pickerId).value = value; atualizarPreview(); } }
-
-async function carregarPersonalizacao() {
-  const negocioId = document.getElementById('pNegocioId').value;
-  if (!negocioId) return;
-  try {
-    const p = await apiFetch(`/negocios/${negocioId}/personalizacao`);
-    setField('pCorPrimaria', p.corPrimaria); setField('pCorPrimariaColor', p.corPrimaria);
-    setField('pCorSecundaria', p.corSecundaria); setField('pCorSecundariaColor', p.corSecundaria);
-    setField('pCorTexto', p.corTexto); setField('pCorTextoColor', p.corTexto);
-    setField('pCorFundo', p.corFundo); setField('pCorFundoColor', p.corFundo);
-    setField('pCorBotao', p.corBotao); setField('pCorBotaoColor', p.corBotao);
-    setField('pCorBotaoTexto', p.corBotaoTexto); setField('pCorBotaoTextoColor', p.corBotaoTexto);
-    setSelect('pFonteTitulo', p.fonteTitulo || 'Segoe UI');
-    setSelect('pFonteCorpo', p.fonteCorpo || 'Segoe UI');
-    setField('pLogoUrl', p.logoUrl || ''); setField('pBannerUrl', p.bannerUrl || ''); setField('pFaviconUrl', p.faviconUrl || '');
-    atualizarPreview();
-  } catch (e) { console.warn('Erro personalização:', e); }
-}
-
-function setField(id, val) { const el = document.getElementById(id); if (el) el.value = val || ''; }
-function setSelect(id, val) { const el = document.getElementById(id); if (el) { el.value = val; if (!el.value) el.value = el.options[0]?.value || ''; } }
-
-function atualizarPreview() {
-  const cp = document.getElementById('pCorPrimaria').value, cs = document.getElementById('pCorSecundaria').value;
-  const ct = document.getElementById('pCorTexto').value, cf = document.getElementById('pCorFundo').value;
-  const cb = document.getElementById('pCorBotao').value, cbt = document.getElementById('pCorBotaoTexto').value;
-  const logo = document.getElementById('pLogoUrl').value;
-  document.getElementById('previewHeader').style.background = `linear-gradient(135deg,${cp},${cs})`;
-  document.getElementById('previewHeader').style.color = ct;
-  document.getElementById('previewBody').style.background = cf;
-  document.getElementById('previewBtn').style.background = `linear-gradient(135deg,${cb},${cs})`;
-  document.getElementById('previewBtn').style.color = cbt;
-  document.getElementById('previewLogo').innerHTML = logo ? `<img src="${logo}" style="max-height:36px;border-radius:6px;margin-bottom:4px" onerror="this.style.display='none'">` : '';
-}
-
-async function salvarPersonalizacao() {
-  const negocioId = document.getElementById('pNegocioId').value;
-  if (!negocioId) { showAlert('error', 'Selecione um negócio.'); return; }
-  try {
-    const body = {
-      corPrimaria: document.getElementById('pCorPrimaria').value,
-      corSecundaria: document.getElementById('pCorSecundaria').value,
-      corTexto: document.getElementById('pCorTexto').value,
-      corFundo: document.getElementById('pCorFundo').value,
-      corBotao: document.getElementById('pCorBotao').value,
-      corBotaoTexto: document.getElementById('pCorBotaoTexto').value,
-      fonteTitulo: document.getElementById('pFonteTitulo').value,
-      fonteCorpo: document.getElementById('pFonteCorpo').value,
-      logoUrl: document.getElementById('pLogoUrl').value || undefined,
-      bannerUrl: document.getElementById('pBannerUrl').value || undefined,
-      faviconUrl: document.getElementById('pFaviconUrl').value || undefined,
-    };
-    const data = await apiFetch(`/negocios/${negocioId}/personalizacao`, { method: 'PUT', body: JSON.stringify(body) });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', 'Personalização salva!');
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-// ========================================================================
-// SERVIÇOS & PRESTADORES — CRUD COMPLETO
-// ========================================================================
-let prestadoresCache = [];
-let servicosCache = [];
-
-function populateNichoSelect(selectId) {
-  const nichos = [...new Set(negociosCache.map(n => n.nichoId).filter(Boolean))];
-  const sel = document.getElementById(selectId);
-  sel.innerHTML = nichos.length ? nichos.map(n => `<option value="${n}">${n}</option>`).join('') : '<option value="">Nenhum nicho</option>';
-  if (selectId === 'sNichoId' && nichos.length) carregarPrestadoresServicos();
-  if (selectId === 'aNichoId' && nichos.length) carregarAgendamentos();
-}
-
-async function carregarPrestadoresServicos() {
-  const nichoId = document.getElementById('sNichoId').value;
-  if (!nichoId) return;
-  try {
-    const [pData, sData] = await Promise.all([
-      apiFetch(`/prestadores?nichoId=${nichoId}`),
-      apiFetch(`/servicos?nichoId=${nichoId}`)
-    ]);
-    prestadoresCache = pData.prestadores || [];
-    servicosCache = sData.servicos || [];
-    renderPrestadores();
-    renderServicos();
-    populatePrestadorSelect();
-  } catch (e) { showAlert('error', 'Erro ao carregar: ' + e.message); }
-}
-
-function renderPrestadores() {
-  const el = document.getElementById('prestadoresList');
-  const empty = document.getElementById('prestadoresEmpty');
-  if (!prestadoresCache.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
-  empty.style.display = 'none';
-  const diasNomes = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  el.innerHTML = prestadoresCache.map((p, idx) => {
-    const dias = (p.diasSemana || []).map(d => diasNomes[d] || d).join(', ');
-    return `
-      <div class="negocio-card" style="margin-bottom:8px">
-        <div class="negocio-header">
-          <div class="negocio-info">
-            <div style="font-weight:700">${p.nome}</div>
-            <div class="negocio-detail">${p.categoria || 'Sem categoria'} · ${p.horarioInicio || '08:00'}–${p.horarioFim || '18:00'} · ${dias}</div>
-            <div class="negocio-detail" style="font-size:.8rem;color:var(--text-light)">ID: ${p.id}</div>
-          </div>
-          <div class="negocio-actions">
-            <span class="badge ${p.ativo !== false ? 'badge-active' : 'badge-error'}">${p.ativo !== false ? 'Ativo' : 'Inativo'}</span>
-            <button class="btn btn-outline btn-sm" onclick="toggleEditarPrestador(${idx})">✏️</button>
-            <button class="btn btn-danger btn-sm" onclick="excluirPrestador('${p.id}','${p.nome}')">🗑</button>
-          </div>
-        </div>
-        <div id="editPrest-${idx}" style="display:none"></div>
-      </div>`;
-  }).join('');
-}
-
-function toggleEditarPrestador(idx) {
-  const el = document.getElementById(`editPrest-${idx}`);
-  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
-  const p = prestadoresCache[idx];
-  const diasNums = p.diasSemana || [1,2,3,4,5];
-  el.innerHTML = `
-    <div style="padding:12px;border-top:1px solid var(--border)">
-      <div class="form-row">
-        <div class="form-group"><label>Nome</label><input type="text" id="ep${idx}Nome" value="${p.nome || ''}"></div>
-        <div class="form-group"><label>Categoria</label><input type="text" id="ep${idx}Cat" value="${p.categoria || ''}"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Início</label><input type="time" id="ep${idx}HI" value="${p.horarioInicio || '08:00'}"></div>
-        <div class="form-group"><label>Fim</label><input type="time" id="ep${idx}HF" value="${p.horarioFim || '18:00'}"></div>
-      </div>
-      <div class="form-group"><label>WhatsApp</label><input type="tel" id="ep${idx}Wpp" value="${p.whatsappNumero || ''}"></div>
-      <div class="form-group">
-        <label>Dias</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${[0,1,2,3,4,5,6].map(d => `<label><input type="checkbox" class="ep${idx}-dia" value="${d}" ${diasNums.includes(d)?'checked':''}> ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]}</label>`).join('')}
-        </div>
-      </div>
-      <div class="btn-group">
-        <button class="btn btn-success btn-sm" onclick="salvarPrestador(${idx})">💾 Salvar</button>
-        <button class="btn btn-outline btn-sm" onclick="document.getElementById('editPrest-${idx}').style.display='none'">Cancelar</button>
-      </div>
-    </div>`;
-  el.style.display = 'block';
-}
-
-async function salvarPrestador(idx) {
-  const p = prestadoresCache[idx];
-  try {
-    const dias = [...document.querySelectorAll(`.ep${idx}-dia:checked`)].map(c => parseInt(c.value));
-    const body = {
-      nome: document.getElementById(`ep${idx}Nome`).value.trim(),
-      categoria: document.getElementById(`ep${idx}Cat`).value.trim(),
-      horarioInicio: document.getElementById(`ep${idx}HI`).value,
-      horarioFim: document.getElementById(`ep${idx}HF`).value,
-      whatsappNumero: document.getElementById(`ep${idx}Wpp`).value.trim(),
-      diasSemana: dias,
-    };
-    const data = await apiFetch(`/prestadores/${p.id}`, { method: 'PUT', body: JSON.stringify(body) });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', 'Prestador atualizado!');
-    carregarPrestadoresServicos();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-async function excluirPrestador(id, nome) {
-  if (!confirm(`Excluir prestador "${nome}"? Todos os serviços vinculados serão excluídos.`)) return;
-  try {
-    const data = await apiFetch(`/prestadores/${id}`, { method: 'DELETE' });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', `"${nome}" excluído.`);
-    carregarPrestadoresServicos();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-function toggleNovoPrestador() {
-  const f = document.getElementById('formNovoPrestador');
-  f.style.display = f.style.display === 'none' ? 'block' : 'none';
-}
-
-async function criarPrestador() {
-  const nichoId = document.getElementById('sNichoId').value;
-  if (!nichoId) { showAlert('error', 'Selecione um nicho primeiro.'); return; }
-  try {
-    const dias = [...document.querySelectorAll('.sp-dia:checked')].map(c => parseInt(c.value));
-    const body = {
-      nichoId,
-      id: document.getElementById('spId').value.trim(),
-      nome: document.getElementById('spNome').value.trim(),
-      categoria: document.getElementById('spCategoria').value.trim(),
-      horarioInicio: document.getElementById('spHorarioInicio').value,
-      horarioFim: document.getElementById('spHorarioFim').value,
-      diasSemana: dias,
-      whatsappNumero: document.getElementById('spWhatsapp').value.trim(),
-    };
-    if (!body.id || !body.nome) { showAlert('error', 'ID e Nome são obrigatórios.'); return; }
-    const data = await apiFetch('/prestadores', { method: 'POST', body: JSON.stringify(body) });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', `Prestador "${body.nome}" criado!`);
-    toggleNovoPrestador();
-    ['spId','spNome','spCategoria','spWhatsapp'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-    carregarPrestadoresServicos();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-// --- Serviços ---
-function populatePrestadorSelect() {
-  const sel = document.getElementById('ssPrestadorId');
-  if (!sel) return;
-  sel.innerHTML = prestadoresCache.length
-    ? prestadoresCache.map(p => `<option value="${p.id}">${p.nome} (${p.id})</option>`).join('')
-    : '<option value="">Cadastre um prestador primeiro</option>';
-}
-
-function renderServicos() {
-  const el = document.getElementById('servicosList');
-  const empty = document.getElementById('servicosEmpty');
-  if (!servicosCache.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
-  empty.style.display = 'none';
-  el.innerHTML = `
-    <div class="table-scroll"><table><thead><tr><th>Serviço</th><th>Duração</th><th>Preço</th><th>Prestador</th><th>Status</th><th>Ações</th></tr></thead><tbody>
-    ${servicosCache.map((s, idx) => `<tr>
-      <td><strong>${s.nome}</strong><br><span style="font-size:.75rem;color:var(--text-light)">${s.id}</span></td>
-      <td>${s.duracaoMinutos} min</td>
-      <td>${s.preco ? 'R$ ' + Number(s.preco).toFixed(2) : '—'}</td>
-      <td style="font-size:.85rem">${s.prestadorNome || s.prestadorId}</td>
-      <td><span class="badge ${s.ativo !== false ? 'badge-active' : 'badge-error'}">${s.ativo !== false ? 'Ativo' : 'Inativo'}</span></td>
-      <td>
-        <button class="btn btn-outline btn-sm" onclick="toggleEditarServico(${idx})" style="padding:4px 8px">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="excluirServico('${s.id}','${s.nome}')" style="padding:4px 8px">🗑</button>
-      </td>
-    </tr>
-    <tr id="editServ-${idx}" style="display:none"><td colspan="6"></td></tr>`).join('')}
-    </tbody></table></div>`;
-}
-
-function toggleEditarServico(idx) {
-  const tr = document.getElementById(`editServ-${idx}`);
-  if (tr.style.display !== 'none') { tr.style.display = 'none'; return; }
-  const s = servicosCache[idx];
-  tr.querySelector('td').innerHTML = `
-    <div style="padding:8px;background:#fafafa;border-radius:8px">
-      <div class="form-row">
-        <div class="form-group"><label>Nome</label><input type="text" id="es${idx}Nome" value="${s.nome || ''}"></div>
-        <div class="form-group"><label>Prestador</label><select id="es${idx}Prest">${prestadoresCache.map(p => `<option value="${p.id}" ${p.id===s.prestadorId?'selected':''}>${p.nome}</option>`).join('')}</select></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Duração (min)</label><input type="number" id="es${idx}Dur" value="${s.duracaoMinutos || 30}" min="5" max="480"></div>
-        <div class="form-group"><label>Preço</label><input type="number" id="es${idx}Preco" value="${s.preco || ''}" step="0.01" min="0"></div>
-      </div>
-      <div class="btn-group">
-        <button class="btn btn-success btn-sm" onclick="salvarServico(${idx})">💾 Salvar</button>
-        <button class="btn btn-outline btn-sm" onclick="document.getElementById('editServ-${idx}').style.display='none'">Cancelar</button>
-      </div>
-    </div>`;
-  tr.style.display = 'table-row';
-}
-
-async function salvarServico(idx) {
-  const s = servicosCache[idx];
-  try {
-    const body = {
-      nome: document.getElementById(`es${idx}Nome`).value.trim(),
-      prestadorId: document.getElementById(`es${idx}Prest`).value,
-      duracaoMinutos: parseInt(document.getElementById(`es${idx}Dur`).value) || 30,
-      preco: parseFloat(document.getElementById(`es${idx}Preco`).value) || null,
-    };
-    const data = await apiFetch(`/servicos/${s.id}`, { method: 'PUT', body: JSON.stringify(body) });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', 'Serviço atualizado!');
-    carregarPrestadoresServicos();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-async function excluirServico(id, nome) {
-  if (!confirm(`Excluir serviço "${nome}"?`)) return;
-  try {
-    const data = await apiFetch(`/servicos/${id}`, { method: 'DELETE' });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', `"${nome}" excluído.`);
-    carregarPrestadoresServicos();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-function toggleNovoServico() {
-  const f = document.getElementById('formNovoServico');
-  f.style.display = f.style.display === 'none' ? 'block' : 'none';
-}
-
-async function criarServico() {
-  const nichoId = document.getElementById('sNichoId').value;
-  if (!nichoId) { showAlert('error', 'Selecione um nicho primeiro.'); return; }
-  try {
-    const body = {
-      nichoId,
-      prestadorId: document.getElementById('ssPrestadorId').value,
-      id: document.getElementById('ssId').value.trim(),
-      nome: document.getElementById('ssNome').value.trim(),
-      duracaoMinutos: parseInt(document.getElementById('ssDuracao').value) || 30,
-      preco: parseFloat(document.getElementById('ssPreco').value) || null,
-    };
-    if (!body.prestadorId || !body.id || !body.nome) { showAlert('error', 'Prestador, ID e Nome são obrigatórios.'); return; }
-    const data = await apiFetch('/servicos', { method: 'POST', body: JSON.stringify(body) });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', `Serviço "${body.nome}" criado!`);
-    toggleNovoServico();
-    ['ssId','ssNome','ssDuracao','ssPreco'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-    document.getElementById('ssDuracao').value = '30';
-    carregarPrestadoresServicos();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-// old function kept for backward compatibility
-async function carregarServicos() { carregarPrestadoresServicos(); }
-
-// ========================================================================
-// AGENDAMENTOS
-// ========================================================================
-function setDefaultDate() { document.getElementById('aData').value = new Date().toISOString().split('T')[0]; }
-
-async function carregarAgendamentos() {
-  const nichoId = document.getElementById('aNichoId').value;
-  const data = document.getElementById('aData').value;
-  if (!nichoId || !data) return;
-  try {
-    const config = await apiFetch(`/nicho?nichoId=${nichoId}`);
-    if (!config.prestadores || !config.prestadores.length) {
-      document.getElementById('agendamentosTable').style.display = 'none';
-      document.getElementById('agendamentosEmpty').style.display = 'block'; return;
+        </div>`;
+      el.style.display = 'block';
     }
-    const tbody = document.getElementById('agendamentosBody'); tbody.innerHTML = '';
-    let total = 0;
-    for (const prest of config.prestadores) {
-      for (const srv of config.servicos.filter(s => s.prestadorId === prest.id)) {
-        try {
-          const slots = await apiFetch(`/availability?prestadorId=${prest.id}&servicoId=${srv.id}&data=${data}`);
-          if (slots.slots) {
-            slots.slots.filter(s => !s.disponivel).forEach(slot => {
-              total++;
-              const hora = slot.inicio.split('T')[1]?.substring(0,5) || slot.inicio;
-              tbody.innerHTML += `<tr><td><strong>${hora}</strong></td><td>${slot.clienteNome||'—'}</td><td>${srv.nome}</td><td><span class="badge badge-active">Confirmado</span></td><td style="font-size:.8rem">${slot.protocolo||'—'}</td></tr>`;
-            });
+
+    async function salvarPrestador(idx) {
+      const p = prestadoresCache[idx];
+      try {
+        const dias = [...document.querySelectorAll(`.ep${idx}-dia:checked`)].map(c => parseInt(c.value));
+        const body = {
+          nome: document.getElementById(`ep${idx}Nome`).value.trim(),
+          categoria: document.getElementById(`ep${idx}Cat`).value.trim(),
+          horarioInicio: document.getElementById(`ep${idx}HI`).value,
+          horarioFim: document.getElementById(`ep${idx}HF`).value,
+          whatsappNumero: document.getElementById(`ep${idx}Wpp`).value.trim(),
+          diasSemana: dias,
+        };
+        const data = await apiFetch(`/prestadores/${p.id}`, { method: 'PUT', body: JSON.stringify(body) });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', 'Prestador atualizado!');
+        carregarPrestadoresServicos();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    async function excluirPrestador(id, nome) {
+      if (!confirm(`Excluir prestador "${nome}"? Todos os serviços vinculados serão excluídos.`)) return;
+      try {
+        const data = await apiFetch(`/prestadores/${id}`, { method: 'DELETE' });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', `"${nome}" excluído.`);
+        carregarPrestadoresServicos();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    function toggleNovoPrestador() {
+      const f = document.getElementById('formNovoPrestador');
+      f.style.display = f.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function criarPrestador() {
+      const nichoId = document.getElementById('sNichoId').value;
+      if (!nichoId) { showAlert('error', 'Selecione um nicho primeiro.'); return; }
+      try {
+        const dias = [...document.querySelectorAll('.sp-dia:checked')].map(c => parseInt(c.value));
+        const body = {
+          nichoId,
+          id: document.getElementById('spId').value.trim(),
+          nome: document.getElementById('spNome').value.trim(),
+          categoria: document.getElementById('spCategoria').value.trim(),
+          horarioInicio: document.getElementById('spHorarioInicio').value,
+          horarioFim: document.getElementById('spHorarioFim').value,
+          diasSemana: dias,
+          whatsappNumero: document.getElementById('spWhatsapp').value.trim(),
+        };
+        if (!body.id || !body.nome) { showAlert('error', 'ID e Nome são obrigatórios.'); return; }
+        const data = await apiFetch('/prestadores', { method: 'POST', body: JSON.stringify(body) });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', `Prestador "${body.nome}" criado!`);
+        toggleNovoPrestador();
+        ['spId','spNome','spCategoria','spWhatsapp'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+        carregarPrestadoresServicos();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    // --- Serviços ---
+    function populatePrestadorSelect() {
+      const sel = document.getElementById('ssPrestadorId');
+      if (!sel) return;
+      sel.innerHTML = prestadoresCache.length
+        ? prestadoresCache.map(p => `<option value="${p.id}">${p.nome} (${p.id})</option>`).join('')
+        : '<option value="">Cadastre um prestador primeiro</option>';
+    }
+
+    function renderServicos() {
+      const el = document.getElementById('servicosList');
+      const empty = document.getElementById('servicosEmpty');
+      if (!servicosCache.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+      el.innerHTML = `
+        <div class="table-scroll"><table><thead><tr><th>Serviço</th><th>Duração</th><th>Preço</th><th>Prestador</th><th>Status</th><th>Ações</th></tr></thead><tbody>
+        ${servicosCache.map((s, idx) => `<tr>
+          <td><strong>${s.nome}</strong><br><span style="font-size:.75rem;color:var(--text-light)">${s.id}</span></td>
+          <td>${s.duracaoMinutos} min</td>
+          <td>${s.preco ? 'R$ ' + Number(s.preco).toFixed(2) : '—'}</td>
+          <td style="font-size:.85rem">${s.prestadorNome || s.prestadorId}</td>
+          <td><span class="badge ${s.ativo !== false ? 'badge-active' : 'badge-error'}">${s.ativo !== false ? 'Ativo' : 'Inativo'}</span></td>
+          <td>
+            <button class="btn btn-outline btn-sm" onclick="toggleEditarServico(${idx})" style="padding:4px 8px">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="excluirServico('${s.id}','${s.nome}')" style="padding:4px 8px">🗑</button>
+          </td>
+        </tr>
+        <tr id="editServ-${idx}" style="display:none"><td colspan="6"></td></tr>`).join('')}
+        </tbody></table></div>`;
+    }
+
+    function toggleEditarServico(idx) {
+      const tr = document.getElementById(`editServ-${idx}`);
+      if (tr.style.display !== 'none') { tr.style.display = 'none'; return; }
+      const s = servicosCache[idx];
+      tr.querySelector('td').innerHTML = `
+        <div style="padding:8px;background:#fafafa;border-radius:8px">
+          <div class="form-row">
+            <div class="form-group"><label>Nome</label><input type="text" id="es${idx}Nome" value="${s.nome || ''}"></div>
+            <div class="form-group"><label>Prestador</label><select id="es${idx}Prest">${prestadoresCache.map(p => `<option value="${p.id}" ${p.id===s.prestadorId?'selected':''}>${p.nome}</option>`).join('')}</select></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Duração (min)</label><input type="number" id="es${idx}Dur" value="${s.duracaoMinutos || 30}" min="5" max="480"></div>
+            <div class="form-group"><label>Preço</label><input type="number" id="es${idx}Preco" value="${s.preco || ''}" step="0.01" min="0"></div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-success btn-sm" onclick="salvarServico(${idx})">💾 Salvar</button>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('editServ-${idx}').style.display='none'">Cancelar</button>
+          </div>
+        </div>`;
+      tr.style.display = 'table-row';
+    }
+
+    async function salvarServico(idx) {
+      const s = servicosCache[idx];
+      try {
+        const body = {
+          nome: document.getElementById(`es${idx}Nome`).value.trim(),
+          prestadorId: document.getElementById(`es${idx}Prest`).value,
+          duracaoMinutos: parseInt(document.getElementById(`es${idx}Dur`).value) || 30,
+          preco: parseFloat(document.getElementById(`es${idx}Preco`).value) || null,
+        };
+        const data = await apiFetch(`/servicos/${s.id}`, { method: 'PUT', body: JSON.stringify(body) });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', 'Serviço atualizado!');
+        carregarPrestadoresServicos();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    async function excluirServico(id, nome) {
+      if (!confirm(`Excluir serviço "${nome}"?`)) return;
+      try {
+        const data = await apiFetch(`/servicos/${id}`, { method: 'DELETE' });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', `"${nome}" excluído.`);
+        carregarPrestadoresServicos();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    function toggleNovoServico() {
+      const f = document.getElementById('formNovoServico');
+      f.style.display = f.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function criarServico() {
+      const nichoId = document.getElementById('sNichoId').value;
+      if (!nichoId) { showAlert('error', 'Selecione um nicho primeiro.'); return; }
+      try {
+        const body = {
+          nichoId,
+          prestadorId: document.getElementById('ssPrestadorId').value,
+          id: document.getElementById('ssId').value.trim(),
+          nome: document.getElementById('ssNome').value.trim(),
+          duracaoMinutos: parseInt(document.getElementById('ssDuracao').value) || 30,
+          preco: parseFloat(document.getElementById('ssPreco').value) || null,
+        };
+        if (!body.prestadorId || !body.id || !body.nome) { showAlert('error', 'Prestador, ID e Nome são obrigatórios.'); return; }
+        const data = await apiFetch('/servicos', { method: 'POST', body: JSON.stringify(body) });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', `Serviço "${body.nome}" criado!`);
+        toggleNovoServico();
+        ['ssId','ssNome','ssDuracao','ssPreco'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+        document.getElementById('ssDuracao').value = '30';
+        carregarPrestadoresServicos();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    // old function kept for backward compatibility
+    async function carregarServicos() { carregarPrestadoresServicos(); }
+
+    // ========================================================================
+    // AGENDAMENTOS
+    // ========================================================================
+    function setDefaultDate() { document.getElementById('aData').value = new Date().toISOString().split('T')[0]; }
+
+    async function carregarAgendamentos() {
+      const nichoId = document.getElementById('aNichoId').value;
+      const data = document.getElementById('aData').value;
+      const clienteNome = document.getElementById('aClienteNome').value.trim();
+      const clienteTelefone = document.getElementById('aClienteTelefone').value.trim();
+      if (!nichoId && !data && !clienteNome && !clienteTelefone) return;
+      try {
+        let url = `/booking?`;
+        if (data) url += `data=${encodeURIComponent(data)}&`;
+        if (clienteNome) url += `clienteNome=${encodeURIComponent(clienteNome)}&`;
+        if (clienteTelefone) url += `clienteTelefone=${encodeURIComponent(clienteTelefone)}&`;
+        // Se quiser filtrar por nichoId, adicione na query e backend
+        const res = await apiFetch(url);
+        const agendamentos = res.agendamentos || [];
+        const tbody = document.getElementById('agendamentosBody');
+        tbody.innerHTML = '';
+        if (!agendamentos.length) {
+          document.getElementById('agendamentosTable').style.display = 'none';
+          document.getElementById('agendamentosEmpty').style.display = 'block';
+          return;
+        }
+        agendamentos.forEach(ag => {
+          const hora = ag.data_hora?.split('T')[1]?.substring(0,5) || ag.data_hora;
+          tbody.innerHTML += `<tr><td><strong>${hora}</strong></td><td>${ag.cliente_nome||'—'}</td><td>${ag.servico_id||'—'}</td><td><span class="badge badge-active">${ag.status||'—'}</span></td><td style="font-size:.8rem">${ag.protocolo||'—'}</td></tr>`;
+        });
+        document.getElementById('agendamentosTable').style.display = 'table';
+        document.getElementById('agendamentosEmpty').style.display = 'none';
+      } catch (e) {
+        showAlert('error', 'Erro ao buscar agendamentos.');
+      }
+    }
+
+    // ========================================================================
+    // INTEGRAÇÕES
+    // ========================================================================
+    function toggleNovaIntegracao() {
+      const f = document.getElementById('formNovaIntegracao');
+      f.style.display = f.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function carregarIntegracoes() {
+      const negocioId = document.getElementById('iNegocioId').value;
+      if (!negocioId) return;
+      try {
+        const data = await apiFetch(`/integracoes/email/${negocioId}`);
+        const el = document.getElementById('integracoesList');
+        const list = data.integracoes || [];
+        if (!list.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📧</div><p>Nenhuma integração.</p></div>'; return; }
+        const icons = {google:'🔵',outlook:'🟦',apple:'🍎',smtp:'📧'};
+        el.innerHTML = list.map(i => {
+          const prov = i.provedor||'', email = i.emailCalendario||i.email_calendario||'';
+          const prest = i.prestadorId||i.prestador_id||'', status = i.status||'pendente';
+          const conf = i.enviarConfirmacao??i.enviar_confirmacao??false;
+          const canc = i.enviarCancelamento??i.enviar_cancelamento??false;
+          const lemb = i.enviarLembrete??i.enviar_lembrete??false;
+          const lembH = i.lembreteHorasAntes??i.lembrete_horas_antes??24;
+          return `<div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center"><div><strong>${icons[prov]||'📧'} ${prov.toUpperCase()}</strong><div style="font-size:.85rem;color:var(--text-light)">${email}</div><div style="font-size:.8rem;color:var(--text-light)">Prestador: ${prest}</div></div><div><span class="badge ${status==='ativo'?'badge-active':status==='erro'?'badge-error':'badge-pending'}">${status}</span><button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="excluirIntegracao('${i.id}')">🗑</button></div></div><div style="font-size:.8rem;color:var(--text-light);margin-top:6px">${conf?'✅':'❌'} Confirmação · ${canc?'✅':'❌'} Cancelamento · ${lemb?'✅ Lembrete ('+lembH+'h)':'❌ Lembrete'}</div></div>`;
+        }).join('');
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    async function criarIntegracao() {
+      const negocioId = document.getElementById('iNegocioId').value;
+      if (!negocioId) { showAlert('error', 'Selecione um negócio.'); return; }
+      try {
+        const body = { negocioId, prestadorId: document.getElementById('iPrestadorId').value.trim(), provedor: document.getElementById('iProvedor').value, emailCalendario: document.getElementById('iEmail').value.trim(), enviarConfirmacao: document.getElementById('iConfirmacao').checked, enviarCancelamento: document.getElementById('iCancelamento').checked, enviarLembrete: document.getElementById('iLembrete').checked, lembreteHorasAntes: parseInt(document.getElementById('iLembreteHoras').value)||24 };
+        if (!body.prestadorId || !body.emailCalendario) { showAlert('error', 'Prestador ID e email obrigatórios.'); return; }
+        const data = await apiFetch('/integracoes/email', { method: 'POST', body: JSON.stringify(body) });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', 'Integração criada!'); toggleNovaIntegracao(); carregarIntegracoes();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    async function excluirIntegracao(id) {
+      if (!confirm('Remover esta integração?')) return;
+      try {
+        const data = await apiFetch(`/integracoes/email/${id}`, { method: 'DELETE' });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', 'Integração removida.'); carregarIntegracoes();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    // ========================================================================
+    // USUÁRIOS (admin only)
+    // ========================================================================
+    function toggleNovoUsuario() {
+      const f = document.getElementById('formNovoUsuario');
+      f.style.display = f.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function carregarUsuarios() {
+      try {
+        const data = await apiFetch('/auth/usuarios');
+        const el = document.getElementById('usuariosList');
+        const list = data.usuarios || [];
+        if (!list.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><p>Nenhum usuário.</p></div>'; return; }
+        el.innerHTML = list.map(u => `
+          <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <strong>${u.nome}</strong>
+              <div style="font-size:.85rem;color:var(--text-light)">${u.email}</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span class="badge ${u.role==='admin'?'badge-admin':'badge-user'}">${u.role.toUpperCase()}</span>
+              <span class="badge ${u.ativo?'badge-active':'badge-error'}">${u.ativo?'Ativo':'Inativo'}</span>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    async function criarUsuario() {
+      try {
+        const body = {
+          nome: document.getElementById('uNome').value.trim(),
+          email: document.getElementById('uEmail').value.trim(),
+          senha: document.getElementById('uSenha').value,
+        };
+        if (!body.nome || !body.email || !body.senha) { showAlert('error', 'Preencha todos os campos.'); return; }
+        if (body.senha.length < 6) { showAlert('error', 'Senha mínima: 6 caracteres.'); return; }
+        const data = await apiFetch('/auth/usuarios', { method: 'POST', body: JSON.stringify(body) });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', `Usuário "${body.nome}" criado!`);
+        toggleNovoUsuario();
+        ['uNome','uEmail','uSenha'].forEach(id => document.getElementById(id).value = '');
+        carregarUsuarios();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    // ========================================================================
+    // INIT — verificar sessão existente
+    // ========================================================================
+    if (AUTH_TOKEN && CURRENT_USER) {
+      // Verificar se token ainda é válido e atualizar dados do usuário
+      fetch(`${API_URL}/api/auth/me`, { headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` } })
+        .then(r => { if (r.ok) return r.json(); throw new Error('expired'); })
+        .then(data => {
+          if (data.usuario) {
+            CURRENT_USER = { ...CURRENT_USER, ...data.usuario };
+            localStorage.setItem('currentUser', JSON.stringify(CURRENT_USER));
           }
-        } catch {}
-      }
+          iniciarPainel();
+        })
+        .catch(() => logout());
+    } else {
+      document.getElementById('loginOverlay').classList.remove('hidden');
     }
-    document.getElementById('agendamentosTable').style.display = total > 0 ? 'table' : 'none';
-    document.getElementById('agendamentosEmpty').style.display = total > 0 ? 'none' : 'block';
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-// ========================================================================
-// INTEGRAÇÕES
-// ========================================================================
-function toggleNovaIntegracao() {
-  const f = document.getElementById('formNovaIntegracao');
-  f.style.display = f.style.display === 'none' ? 'block' : 'none';
-}
-
-async function carregarIntegracoes() {
-  const negocioId = document.getElementById('iNegocioId').value;
-  if (!negocioId) return;
-  try {
-    const data = await apiFetch(`/integracoes/email/${negocioId}`);
-    const el = document.getElementById('integracoesList');
-    const list = data.integracoes || [];
-    if (!list.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📧</div><p>Nenhuma integração.</p></div>'; return; }
-    const icons = {google:'🔵',outlook:'🟦',apple:'🍎',smtp:'📧'};
-    el.innerHTML = list.map(i => {
-      const prov = i.provedor||'', email = i.emailCalendario||i.email_calendario||'';
-      const prest = i.prestadorId||i.prestador_id||'', status = i.status||'pendente';
-      const conf = i.enviarConfirmacao??i.enviar_confirmacao??false;
-      const canc = i.enviarCancelamento??i.enviar_cancelamento??false;
-      const lemb = i.enviarLembrete??i.enviar_lembrete??false;
-      const lembH = i.lembreteHorasAntes??i.lembrete_horas_antes??24;
-      return `<div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center"><div><strong>${icons[prov]||'📧'} ${prov.toUpperCase()}</strong><div style="font-size:.85rem;color:var(--text-light)">${email}</div><div style="font-size:.8rem;color:var(--text-light)">Prestador: ${prest}</div></div><div><span class="badge ${status==='ativo'?'badge-active':status==='erro'?'badge-error':'badge-pending'}">${status}</span><button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="excluirIntegracao('${i.id}')">🗑</button></div></div><div style="font-size:.8rem;color:var(--text-light);margin-top:6px">${conf?'✅':'❌'} Confirmação · ${canc?'✅':'❌'} Cancelamento · ${lemb?'✅ Lembrete ('+lembH+'h)':'❌ Lembrete'}</div></div>`;
-    }).join('');
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-async function criarIntegracao() {
-  const negocioId = document.getElementById('iNegocioId').value;
-  if (!negocioId) { showAlert('error', 'Selecione um negócio.'); return; }
-  try {
-    const body = { negocioId, prestadorId: document.getElementById('iPrestadorId').value.trim(), provedor: document.getElementById('iProvedor').value, emailCalendario: document.getElementById('iEmail').value.trim(), enviarConfirmacao: document.getElementById('iConfirmacao').checked, enviarCancelamento: document.getElementById('iCancelamento').checked, enviarLembrete: document.getElementById('iLembrete').checked, lembreteHorasAntes: parseInt(document.getElementById('iLembreteHoras').value)||24 };
-    if (!body.prestadorId || !body.emailCalendario) { showAlert('error', 'Prestador ID e email obrigatórios.'); return; }
-    const data = await apiFetch('/integracoes/email', { method: 'POST', body: JSON.stringify(body) });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', 'Integração criada!'); toggleNovaIntegracao(); carregarIntegracoes();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-async function excluirIntegracao(id) {
-  if (!confirm('Remover esta integração?')) return;
-  try {
-    const data = await apiFetch(`/integracoes/email/${id}`, { method: 'DELETE' });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', 'Integração removida.'); carregarIntegracoes();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-// ========================================================================
-// USUÁRIOS (admin only)
-// ========================================================================
-function toggleNovoUsuario() {
-  const f = document.getElementById('formNovoUsuario');
-  f.style.display = f.style.display === 'none' ? 'block' : 'none';
-}
-
-async function carregarUsuarios() {
-  try {
-    const data = await apiFetch('/auth/usuarios');
-    const el = document.getElementById('usuariosList');
-    const list = data.usuarios || [];
-    if (!list.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><p>Nenhum usuário.</p></div>'; return; }
-    el.innerHTML = list.map(u => `
-      <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <strong>${u.nome}</strong>
-          <div style="font-size:.85rem;color:var(--text-light)">${u.email}</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span class="badge ${u.role==='admin'?'badge-admin':'badge-user'}">${u.role.toUpperCase()}</span>
-          <span class="badge ${u.ativo?'badge-active':'badge-error'}">${u.ativo?'Ativo':'Inativo'}</span>
-        </div>
-      </div>
-    `).join('');
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-async function criarUsuario() {
-  try {
-    const body = {
-      nome: document.getElementById('uNome').value.trim(),
-      email: document.getElementById('uEmail').value.trim(),
-      senha: document.getElementById('uSenha').value,
-    };
-    if (!body.nome || !body.email || !body.senha) { showAlert('error', 'Preencha todos os campos.'); return; }
-    if (body.senha.length < 6) { showAlert('error', 'Senha mínima: 6 caracteres.'); return; }
-    const data = await apiFetch('/auth/usuarios', { method: 'POST', body: JSON.stringify(body) });
-    if (data.erro) { showAlert('error', data.erro); return; }
-    showAlert('success', `Usuário "${body.nome}" criado!`);
-    toggleNovoUsuario();
-    ['uNome','uEmail','uSenha'].forEach(id => document.getElementById(id).value = '');
-    carregarUsuarios();
-  } catch (e) { showAlert('error', 'Erro: ' + e.message); }
-}
-
-// ========================================================================
-// INIT — verificar sessão existente
-// ========================================================================
-if (AUTH_TOKEN && CURRENT_USER) {
-  // Verificar se token ainda é válido e atualizar dados do usuário
-  fetch(`${API_URL}/api/auth/me`, { headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` } })
-    .then(r => { if (r.ok) return r.json(); throw new Error('expired'); })
-    .then(data => {
-      if (data.usuario) {
-        CURRENT_USER = { ...CURRENT_USER, ...data.usuario };
-        localStorage.setItem('currentUser', JSON.stringify(CURRENT_USER));
-      }
-      iniciarPainel();
-    })
-    .catch(() => logout());
-} else {
-  document.getElementById('loginOverlay').classList.remove('hidden');
-}
-</script>
-</body>
-</html>
+  </script>
+  </body>
+  </html>

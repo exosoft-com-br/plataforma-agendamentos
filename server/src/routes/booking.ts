@@ -249,3 +249,39 @@ bookingRouter.post("/booking/cancel", async (req: Request, res: Response) => {
     res.status(500).json({ erro: "Erro interno ao cancelar agendamento." });
   }
 });
+
+/**
+ * GET /api/booking
+ * Lista agendamentos filtrando por data, nome ou telefone do cliente.
+ * Query params: data (YYYY-MM-DD), clienteNome, clienteTelefone
+ */
+bookingRouter.get("/booking", async (req: Request, res: Response) => {
+  try {
+    const { data, clienteNome, clienteTelefone } = req.query;
+    let query = supabase.from("agendamentos").select("*", { count: "exact" });
+
+    if (data) {
+      // Filtra por data (ignora hora)
+      const start = new Date(data as string);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 1);
+      query = query.gte("data_hora", start.toISOString()).lt("data_hora", end.toISOString());
+    }
+    if (clienteNome) {
+      query = query.ilike("cliente_nome", `%${clienteNome}%`);
+    }
+    if (clienteTelefone) {
+      const tel = (clienteTelefone as string).replace(/\D/g, "");
+      query = query.ilike("cliente_telefone", `%${tel}%`);
+    }
+    query = query.order("data_hora", { ascending: true });
+    const { data: agendamentos, error } = await query;
+    if (error) {
+      res.status(500).json({ erro: "Erro ao buscar agendamentos." });
+      return;
+    }
+    res.json({ agendamentos });
+  } catch (erro) {
+    res.status(500).json({ erro: "Erro interno ao buscar agendamentos." });
+  }
+});
