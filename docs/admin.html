@@ -284,8 +284,112 @@
     <button class="tab" onclick="showSection('personalizacao', this)">🎨 Personalização</button>
     <button class="tab" onclick="showSection('servicos', this)">📋 Serviços</button>
     <button class="tab" onclick="showSection('agendamentos', this)">📅 Agendamentos</button>
+    <button class="tab" onclick="showSection('agenda-prestador', this)">👤 Agenda Prestador</button>
     <button class="tab" onclick="showSection('integracoes', this)">📧 Integrações</button>
     <button class="tab admin-only" onclick="showSection('usuarios', this)">👥 Usuários</button>
+    <!-- ===== AGENDA PRESTADOR ===== -->
+    <div id="sec-agenda-prestador" class="section" style="display:none">
+      <div class="card">
+        <h2>👤 Agenda por Prestador</h2>
+        <div class="form-row">
+          <div class="form-group"><label>Nicho</label><select id="apNichoId" onchange="carregarPrestadoresAgenda()"></select></div>
+          <div class="form-group"><label>Prestador</label><select id="apPrestadorId" onchange="carregarAgendaPrestador()"></select></div>
+          <div class="form-group"><label>Data</label><input type="date" id="apData" onchange="carregarAgendaPrestador()"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Cliente (nome)</label><input type="text" id="apClienteNome" placeholder="Buscar por nome" oninput="carregarAgendaPrestador()"></div>
+          <div class="form-group"><label>Telefone</label><input type="text" id="apClienteTelefone" placeholder="Buscar por telefone" oninput="carregarAgendaPrestador()"></div>
+        </div>
+        <div class="table-scroll">
+          <table id="agendaPrestadorTable" style="display:none">
+            <thead><tr><th>Hora</th><th>Cliente</th><th>Serviço</th><th>Status</th><th>Protocolo</th></tr></thead>
+            <tbody id="agendaPrestadorBody"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="agendaPrestadorEmpty" style="display:none"><div class="empty-icon">📅</div><p>Nenhum agendamento encontrado.</p></div>
+      </div>
+    </div>
+    <script>
+    // Carregar nichos para filtro de agenda prestador
+    async function carregarNichoAgendaPrestador() {
+      const sel = document.getElementById('apNichoId');
+      sel.innerHTML = '<option value="">Selecione...</option>';
+      try {
+        const data = await apiFetch('/nichos');
+        (data.nichos||[]).forEach(n => {
+          sel.innerHTML += `<option value="${n.id}">${n.nome_publico||n.nome||n.id}</option>`;
+        });
+      } catch {}
+    }
+
+    // Carregar prestadores do nicho selecionado
+    async function carregarPrestadoresAgenda() {
+      const nichoId = document.getElementById('apNichoId').value;
+      const sel = document.getElementById('apPrestadorId');
+      sel.innerHTML = '<option value="">Todos</option>';
+      if (!nichoId) {carregarAgendaPrestador(); return;}
+      try {
+        const data = await apiFetch(`/prestadores?nichoId=${encodeURIComponent(nichoId)}`);
+        (data.prestadores||[]).forEach(p => {
+          sel.innerHTML += `<option value="${p.id}">${p.nome}</option>`;
+        });
+      } catch {}
+      carregarAgendaPrestador();
+    }
+
+    // Carregar agendamentos do prestador
+    async function carregarAgendaPrestador() {
+      const nichoId = document.getElementById('apNichoId').value;
+      const prestadorId = document.getElementById('apPrestadorId').value;
+      const data = document.getElementById('apData').value;
+      const clienteNome = document.getElementById('apClienteNome').value.trim();
+      const clienteTelefone = document.getElementById('apClienteTelefone').value.trim();
+      if (!nichoId && !prestadorId && !data && !clienteNome && !clienteTelefone) return;
+      let url = `/booking?`;
+      if (nichoId) url += `nichoId=${encodeURIComponent(nichoId)}&`;
+      if (prestadorId) url += `prestadorId=${encodeURIComponent(prestadorId)}&`;
+      if (data) url += `data=${encodeURIComponent(data)}&`;
+      if (clienteNome) url += `clienteNome=${encodeURIComponent(clienteNome)}&`;
+      if (clienteTelefone) url += `clienteTelefone=${encodeURIComponent(clienteTelefone)}&`;
+      try {
+        const res = await apiFetch(url);
+        const agendamentos = res.agendamentos || [];
+        const tbody = document.getElementById('agendaPrestadorBody');
+        tbody.innerHTML = '';
+        if (!agendamentos.length) {
+          document.getElementById('agendaPrestadorTable').style.display = 'none';
+          document.getElementById('agendaPrestadorEmpty').style.display = 'block';
+          return;
+        }
+        agendamentos.forEach(ag => {
+          const hora = ag.data_hora?.split('T')[1]?.substring(0,5) || ag.data_hora;
+          tbody.innerHTML += `<tr><td><strong>${hora}</strong></td><td>${ag.cliente_nome||'—'}</td><td>${ag.servico_id||'—'}</td><td><span class="badge badge-active">${ag.status||'—'}</span></td><td style="font-size:.8rem">${ag.protocolo||'—'}</td></tr>`;
+        });
+        document.getElementById('agendaPrestadorTable').style.display = 'table';
+        document.getElementById('agendaPrestadorEmpty').style.display = 'none';
+      } catch (e) {
+        showAlert('error', 'Erro ao buscar agenda do prestador.');
+      }
+    }
+
+    // Exibir seção correta ao clicar na aba
+    const sectionMap = {
+      'agenda-prestador': 'sec-agenda-prestador',
+      // ... outras seções já mapeadas ...
+    };
+    const oldShowSection = window.showSection;
+    window.showSection = function(sec, el) {
+      if (sectionMap[sec]) {
+        document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+        document.getElementById(sectionMap[sec]).style.display = 'block';
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        if (sec === 'agenda-prestador') carregarNichoAgendaPrestador();
+      } else if (oldShowSection) {
+        oldShowSection(sec, el);
+      }
+    }
+    </script>
   </div>
 
   <!-- Alerts -->
@@ -1440,10 +1544,10 @@
       if (!nichoId && !data && !clienteNome && !clienteTelefone) return;
       try {
         let url = `/booking?`;
+        if (nichoId) url += `nichoId=${encodeURIComponent(nichoId)}&`;
         if (data) url += `data=${encodeURIComponent(data)}&`;
         if (clienteNome) url += `clienteNome=${encodeURIComponent(clienteNome)}&`;
         if (clienteTelefone) url += `clienteTelefone=${encodeURIComponent(clienteTelefone)}&`;
-        // Se quiser filtrar por nichoId, adicione na query e backend
         const res = await apiFetch(url);
         const agendamentos = res.agendamentos || [];
         const tbody = document.getElementById('agendamentosBody');

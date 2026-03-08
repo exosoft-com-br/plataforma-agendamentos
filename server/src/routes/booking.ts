@@ -257,7 +257,7 @@ bookingRouter.post("/booking/cancel", async (req: Request, res: Response) => {
  */
 bookingRouter.get("/booking", async (req: Request, res: Response) => {
   try {
-    const { data, clienteNome, clienteTelefone } = req.query;
+    const { data, clienteNome, clienteTelefone, nichoId, prestadorId } = req.query;
     let query = supabase.from("agendamentos").select("*", { count: "exact" });
 
     if (data) {
@@ -273,6 +273,12 @@ bookingRouter.get("/booking", async (req: Request, res: Response) => {
     if (clienteTelefone) {
       const tel = (clienteTelefone as string).replace(/\D/g, "");
       query = query.ilike("cliente_telefone", `%${tel}%`);
+    }
+    if (nichoId) {
+      query = query.eq("nicho_id", nichoId);
+    }
+    if (prestadorId) {
+      query = query.eq("prestador_id", prestadorId);
     }
     query = query.order("data_hora", { ascending: true });
     const { data: agendamentos, error } = await query;
