@@ -1398,7 +1398,7 @@
       
       try {
         const [pData, sData] = await Promise.all([
-          apiFetch(`/prestadores?nichoId=${nichoId}`),
+          apiFetch(`/prestadores?negocioId=${negocioId}`),
           apiFetch(`/servicos?nichoId=${nichoId}`)
         ]);
         prestadoresCache = pData.prestadores || [];
