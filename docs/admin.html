@@ -565,7 +565,7 @@
     <!-- Prestadores -->
     <div class="card">
       <h2>👤 Prestadores</h2>
-      <div class="form-group"><label>Selecione o Nicho</label><select id="sNichoId" onchange="carregarPrestadoresServicos()"></select></div>
+      <div class="form-group"><label>Selecione o Negócio</label><select id="sNegocioId" onchange="carregarPrestadoresServicos()"></select></div>
       <div id="prestadoresList"></div>
       <div class="empty" id="prestadoresEmpty" style="display:none"><div class="empty-icon">👤</div><p>Nenhum prestador cadastrado.</p></div>
       <div class="btn-group"><button class="btn btn-primary" onclick="toggleNovoPrestador()">+ Novo Prestador</button></div>
@@ -1300,7 +1300,9 @@
         : '<option value="">Nenhum negócio cadastrado</option>';
       
       if (callback && negociosCache.length > 0) {
-        // Se há um callback, chama ele para carregar dados da primeira opção
+        sel.value = negociosCache[0].id; // Set value to the first business
+        callback(); // now call the callback
+      } else if (callback) { // If no negocios, still call callback to clear lists
         callback();
       } else if (selectId === 'pNegocioId' && negociosCache.length) {
         carregarPersonalizacao();
