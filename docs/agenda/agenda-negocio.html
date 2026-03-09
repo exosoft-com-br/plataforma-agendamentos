@@ -105,6 +105,7 @@
   <script>
     const API_URL = 'https://plataforma-agendamentos-api.onrender.com';
     const NEGOCIO_ID = new URLSearchParams(window.location.search).get('negocioId');
+    let NICHO_ID = null;
     let servicosCache = [];
     let prestadoresCache = [];
 
@@ -161,7 +162,6 @@
         
         try {
             const negocioData = await apiFetch(`/negocio/${NEGOCIO_ID}/publico`);
-            
             aplicarPersonalizacao(negocioData.personalizacao);
 
             const titulo = negocioData.negocio.nomeFantasia || 'Agenda';
@@ -172,16 +172,17 @@
             servicosCache = negocioData.servicos || [];
             prestadoresCache = negocioData.prestadores || [];
 
+            // Salva o nichoId para usar no filtro
+            NICHO_ID = negocioData.negocio.nichoId || negocioData.negocio.nicho_id;
+
             // Populate prestador filter
             const prestadorSelect = document.getElementById('prestadorId');
             prestadorSelect.innerHTML = '<option value="">Todos</option>';
             prestadoresCache.forEach(p => {
-                prestadorSelect.innerHTML += `<option value="${p.id}">${p.nome}</option>`;
+              prestadorSelect.innerHTML += `<option value="${p.id}">${p.nome}</option>`;
             });
 
-
             // Set default date and load agenda
-            
             carregarAgenda();
 
         } catch (e) {
@@ -195,7 +196,8 @@
       const clienteNome = document.getElementById('clienteNome').value.trim();
       const clienteTelefone = document.getElementById('clienteTelefone').value.trim();
       
-      let url = `/booking?negocioId=${encodeURIComponent(NEGOCIO_ID)}&`;
+      let url = `/booking?`;
+      if (NICHO_ID) url += `nichoId=${encodeURIComponent(NICHO_ID)}&`;
       if (prestadorId) url += `prestadorId=${encodeURIComponent(prestadorId)}&`;
       if (data) url += `data=${encodeURIComponent(data)}&`;
       if (clienteNome) url += `clienteNome=${encodeURIComponent(clienteNome)}&`;
