@@ -15,16 +15,20 @@ export const servicoRouter = Router();
 servicoRouter.get("/prestadores", async (req: Request, res: Response) => {
   try {
     const nichoId = sanitizarId((req.query.nichoId as string) || "");
-    if (!nichoId) {
-      res.status(400).json({ erro: "Parâmetro obrigatório: nichoId" });
+    const negocioId = sanitizarId((req.query.negocioId as string) || "");
+
+    let query = supabase.from("prestadores").select("*");
+
+    if (negocioId) {
+      query = query.eq("negocio_id", negocioId);
+    } else if (nichoId) {
+      query = query.eq("nicho_id", nichoId);
+    } else {
+      res.status(400).json({ erro: "Parâmetro obrigatório: negocioId ou nichoId" });
       return;
     }
 
-    const { data, error } = await supabase
-      .from("prestadores")
-      .select("*")
-      .eq("nicho_id", nichoId)
-      .order("criado_em", { ascending: false });
+    const { data, error } = await query.order("criado_em", { ascending: false });
 
     if (error) {
       console.error("Erro ao listar prestadores:", error);
@@ -35,6 +39,7 @@ servicoRouter.get("/prestadores", async (req: Request, res: Response) => {
     const prestadores = (data || []).map((p: any) => ({
       id: p.id,
       nichoId: p.nicho_id,
+      negocioId: p.negocio_id,
       nome: p.nome,
       categoria: p.categoria,
       horarioInicio: p.horario_inicio,
