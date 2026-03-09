@@ -47,7 +47,21 @@ async function salvarNegocio() {
 async function gerarLinksNegocio(id) {
   const baseUrl = 'https://exosoft-com-br.github.io/plataforma-agendamentos/';
   const linkAgendamento = `${baseUrl}?negocio=${id}`;
-  const linkAgenda = `${window.location.origin}/agenda/agenda.html?nichoId=${id}`;
+  
+  let linkAgenda = '';
+  let servicos = [];
+  let negocioData = {};
+  try {
+    const resp = await apiFetch(`/negocio/${id}/publico`);
+    servicos = (resp.servicos || []);
+    negocioData = resp.negocio || {};
+    if (negocioData.nichoId) {
+      linkAgenda = `${window.location.origin}/agenda/agenda.html?nichoId=${negocioData.nichoId}`;
+    }
+  } catch(e) {
+    console.error("Erro ao buscar dados publicos do negocio", e);
+  }
+
   const linkAgendaNegocio = `${window.location.origin}/agenda/agenda-negocio.html?negocioId=${id}`;
   document.getElementById('linkAgendamento').value = linkAgendamento;
   document.getElementById('linkAgenda').value = linkAgenda;
@@ -102,7 +116,7 @@ async function carregarNegocios() {
     for (const n of (data.negocios||[])) {
       const baseUrl = 'https://exosoft-com-br.github.io/plataforma-agendamentos/';
       const linkAgendamento = `${baseUrl}?negocio=${n.id}`;
-      const linkAgenda = `${window.location.origin}/agenda/agenda.html?nichoId=${n.id}`;
+      const linkAgenda = `${window.location.origin}/agenda/agenda.html?nichoId=${n.nichoId}`;
       // Buscar serviços para cada negócio
       let servicos = [];
       try {

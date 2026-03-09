@@ -284,9 +284,10 @@ bookingRouter.get("/booking", async (req: Request, res: Response) => {
       if (nichoId) {
         query = query.eq("nicho_id", nichoId);
       }
-      if (prestadorId) {
-        query = query.eq("prestador_id", prestadorId);
-      }
+    }
+    
+    if (prestadorId) {
+      query = query.eq("prestador_id", prestadorId);
     }
 
     if (data) {
