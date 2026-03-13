@@ -46,13 +46,7 @@ if (process.env.ALLOWED_ORIGINS) {
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Permitir requests sem origin (ex: curl, Postman, webhooks)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      console.warn(`⚠️  CORS bloqueado: ${origin}`);
-      callback(new Error("Não permitido por CORS"));
-    },
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
     maxAge: 86400, // Cache preflight por 24h
