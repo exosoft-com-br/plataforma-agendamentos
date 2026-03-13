@@ -1,7 +1,7 @@
 {
-  "name": "plataforma-agendamentos-server",
+  "name": "agendei-io-server",
   "version": "1.0.0",
-  "description": "API REST para Plataforma de Agendamentos via WhatsApp (Supabase)",
+  "description": "API REST para Agendei.io via WhatsApp (Supabase)",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

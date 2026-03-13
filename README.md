@@ -1,6 +1,7 @@
-# Plataforma de Agendamentos via WhatsApp
+# Agendei.io — Agendamentos via WhatsApp
 
 > Plataforma genérica de agendamentos via WhatsApp, multi-nicho.
+> Projeto renomeado para Agendei.io
 > Backend em Express.js + Supabase (PostgreSQL), deploy no Render.
 
 ---

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: plataforma-agendamentos-api
+    name: agendei-io-api
     runtime: node
     region: oregon
     plan: free
