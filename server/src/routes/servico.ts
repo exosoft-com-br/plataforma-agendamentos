@@ -74,7 +74,7 @@ servicoRouter.post("/prestadores", async (req: Request, res: Response) => {
     const whatsappNumero = (req.body.whatsappNumero || "").replace(/\D/g, "") || null;
 
     // Gerar id único
-    const id = req.body.id ? sanitizarId(req.body.id) : uuidv4();
+    const id = sanitizarId(req.body.id) || uuidv4();
 
     // Função para gerar slug único
     function gerarSlug(nome: string, sufixo: string) {
