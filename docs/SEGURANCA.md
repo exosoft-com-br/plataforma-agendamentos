@@ -18,7 +18,7 @@
 
 ### 3. CORS Restritivo
 Origens permitidas:
-- `https://exosoft-com-br.github.io` (frontend GitHub Pages)
+- `https://app.agendei.io.exosoft.com.br` (frontend CNAME)
 - `http://localhost:3000` / `http://localhost:5173` (desenvolvimento)
 - Origens adicionais via `ALLOWED_ORIGINS` env var
 

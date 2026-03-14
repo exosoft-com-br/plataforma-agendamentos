@@ -9,7 +9,7 @@ services:
     startCommand: npm start
     envVars:
       - key: ALLOWED_ORIGINS
-        value: https://exosoft-com-br.github.io
+        value: https://app.agendei.io.exosoft.com.br
       - key: NODE_ENV
         value: production
       # SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY

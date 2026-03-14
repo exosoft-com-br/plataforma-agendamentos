@@ -1148,7 +1148,7 @@
         el.innerHTML = '<div class="empty"><div class="empty-icon">🏢</div><p>Nenhum negócio cadastrado ainda.</p></div>';
         return;
       }
-      const baseUrl = 'https://exosoft-com-br.github.io/plataforma-agendamentos/';
+      const baseUrl = 'https://app.agendei.io.exosoft.com.br/';
       el.innerHTML = negociosCache.map((n, idx) => {
         const nome = n.nomeFantasia || '';
         const nicho = n.nichoId || '';
@@ -1282,7 +1282,7 @@
         if (data.erro) { showAlert('error', data.erro); return; }
         
         // Gerar link personalizado
-        const baseUrl = 'https://exosoft-com-br.github.io/plataforma-agendamentos/';
+        const baseUrl = 'https://app.agendei.io.exosoft.com.br/';
         const linkAgendamento = `${baseUrl}?negocio=${data.negocio.id}`;
         
         // Mostrar modal com o link

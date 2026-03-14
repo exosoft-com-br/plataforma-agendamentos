@@ -37,7 +37,7 @@
 | `SUPABASE_URL` | `https://bhargdkruycbrcanfvuz.supabase.co` | Não |
 | `SUPABASE_SERVICE_ROLE_KEY` | `(sua service_role key)` | **Sim** ✅ |
 | `SUPABASE_ANON_KEY` | `(sua anon key)` | Não |
-| `ALLOWED_ORIGINS` | `https://exosoft-com-br.github.io` | Não |
+| `ALLOWED_ORIGINS` | `https://app.agendei.io.exosoft.com.br` | Não |
 | `NODE_ENV` | `production` | Não |
 
 6. Clique **"Create Web Service"**
@@ -53,7 +53,7 @@
 ## 2. Frontend no GitHub Pages
 
 O frontend já está publicado em:
-**https://exosoft-com-br.github.io/plataforma-agendamentos/**
+**https://app.agendei.io.exosoft.com.br/**
 
 ### Configurar URL da API
 

@@ -26,8 +26,7 @@ const PORT = process.env.PORT || 3000;
 // SEGURANÇA: CORS — restringir origens permitidas
 // ============================================================
 const allowedOrigins = [
-  "https://exosoft-com-br.github.io",        // GitHub Pages (produção)
-  "https://app.agendei.io.exosoft.com.br",   // Domínio personalizado
+  "https://app.agendei.io.exosoft.com.br",   // Domínio principal (CNAME)
   "http://localhost:3000",                     // Dev local
   "http://localhost:5500",                     // Live Server (VS Code)
   "http://127.0.0.1:5500",

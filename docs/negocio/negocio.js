@@ -45,7 +45,7 @@ async function salvarNegocio() {
 }
 
 async function gerarLinksNegocio(id) {
-  const baseUrl = 'https://exosoft-com-br.github.io/plataforma-agendamentos/';
+  const baseUrl = 'https://app.agendei.io.exosoft.com.br/';
   const linkAgendamento = `${baseUrl}?negocio=${id}`;
   
   let linkAgenda = '';
@@ -114,7 +114,7 @@ async function carregarNegocios() {
   try {
     const data = await apiFetch('/negocios');
     for (const n of (data.negocios||[])) {
-      const baseUrl = 'https://exosoft-com-br.github.io/plataforma-agendamentos/';
+      const baseUrl = 'https://app.agendei.io.exosoft.com.br/';
       const linkAgendamento = `${baseUrl}?negocio=${n.id}`;
       const linkAgenda = `${window.location.origin}/agenda/agenda.html?nichoId=${n.nichoId}`;
       // Buscar serviços para cada negócio

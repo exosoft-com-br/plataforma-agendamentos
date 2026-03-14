@@ -197,7 +197,7 @@ Base URL: `https://plataforma-agendamentos-api.onrender.com`
 
 ## Painel Admin
 
-Acesse: https://exosoft-com-br.github.io/plataforma-agendamentos/admin.html
+Acesse: https://app.agendei.io.exosoft.com.br/admin.html
 
 Funcionalidades:
 - Login com email/senha (Google e Facebook opcionais)
