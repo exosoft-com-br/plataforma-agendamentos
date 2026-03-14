@@ -6,9 +6,17 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+  <meta name="theme-color" content="#00A8C6">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="agendei.io Admin">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Supabase Client CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/supabase.min.js"></script>
-  <title>Admin — Plataforma de Agendamentos</title>
+  <title>Admin — agendei.io</title>
   <script>
     // Configuração Supabase
     const SUPABASE_URL = 'https://<SUA_INSTANCIA>.supabase.co'; // Substitua pela sua URL
@@ -61,12 +69,13 @@
   </script>
   <style>
     :root {
-      --primary: #667eea; --primary-dark: #5a6fd6; --secondary: #764ba2;
-      --bg: #f0f2f5; --card: #fff; --text: #333; --text-light: #666;
-      --border: #e0e0e0; --success: #4caf50; --error: #e53935; --warn: #ff9800;
+      --primary: #00A8C6; --primary-dark: #0090AA; --secondary: #004D61;
+      --accent: #667C85;
+      --bg: #f0f4f6; --card: #fff; --text: #222; --text-light: #667C85;
+      --border: #d8e4e8; --success: #2e9e5b; --error: #e53935; --warn: #ff9800;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    body { font-family: 'Montserrat', system-ui, sans-serif; background: var(--bg); color: var(--text); }
 
     /* ===== LOGIN OVERLAY ===== */
     .login-overlay {
@@ -241,7 +250,7 @@
 <!-- ===== LOGIN OVERLAY ===== -->
 <div class="login-overlay" id="loginOverlay">
   <div class="login-box">
-    <h1>📅 Plataforma de Agendamentos</h1>
+    <h1>📅 agendei.io</h1>
     <p>Painel Administrativo</p>
 
     <div class="login-tabs">
@@ -313,8 +322,8 @@
 <!-- ===== NAVBAR ===== -->
 <nav class="navbar" id="navbar" style="display:none">
   <div>
-    <h1>⚙️ Painel Administrativo</h1>
-    <div class="nav-info">Plataforma de Agendamentos</div>
+    <h1>⚙️ agendei.io</h1>
+    <div class="nav-info">Painel Administrativo · exosoft</div>
   </div>
   <div class="nav-right">
     <img class="user-avatar" id="userAvatar" style="display:none" src="">
@@ -583,21 +592,21 @@
       </div>
       <h3>Cores</h3>
       <div class="form-row">
-        <div class="form-group"><label>Cor Primária</label><div class="color-group"><input type="color" id="pCorPrimariaColor" value="#667eea" oninput="syncColor('pCorPrimaria',this.value)"><input type="text" id="pCorPrimaria" value="#667eea" oninput="syncColorPicker('pCorPrimariaColor',this.value)"></div></div>
-        <div class="form-group"><label>Cor Secundária</label><div class="color-group"><input type="color" id="pCorSecundariaColor" value="#764ba2" oninput="syncColor('pCorSecundaria',this.value)"><input type="text" id="pCorSecundaria" value="#764ba2" oninput="syncColorPicker('pCorSecundariaColor',this.value)"></div></div>
+        <div class="form-group"><label>Cor Primária</label><div class="color-group"><input type="color" id="pCorPrimariaColor" value="#00A8C6" oninput="syncColor('pCorPrimaria',this.value)"><input type="text" id="pCorPrimaria" value="#00A8C6" oninput="syncColorPicker('pCorPrimariaColor',this.value)"></div></div>
+        <div class="form-group"><label>Cor Secundária</label><div class="color-group"><input type="color" id="pCorSecundariaColor" value="#004D61" oninput="syncColor('pCorSecundaria',this.value)"><input type="text" id="pCorSecundaria" value="#004D61" oninput="syncColorPicker('pCorSecundariaColor',this.value)"></div></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>Cor do Texto</label><div class="color-group"><input type="color" id="pCorTextoColor" value="#ffffff" oninput="syncColor('pCorTexto',this.value)"><input type="text" id="pCorTexto" value="#ffffff" oninput="syncColorPicker('pCorTextoColor',this.value)"></div></div>
         <div class="form-group"><label>Cor de Fundo</label><div class="color-group"><input type="color" id="pCorFundoColor" value="#f5f5f5" oninput="syncColor('pCorFundo',this.value)"><input type="text" id="pCorFundo" value="#f5f5f5" oninput="syncColorPicker('pCorFundoColor',this.value)"></div></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Cor do Botão</label><div class="color-group"><input type="color" id="pCorBotaoColor" value="#667eea" oninput="syncColor('pCorBotao',this.value)"><input type="text" id="pCorBotao" value="#667eea" oninput="syncColorPicker('pCorBotaoColor',this.value)"></div></div>
+        <div class="form-group"><label>Cor do Botão</label><div class="color-group"><input type="color" id="pCorBotaoColor" value="#00A8C6" oninput="syncColor('pCorBotao',this.value)"><input type="text" id="pCorBotao" value="#00A8C6" oninput="syncColorPicker('pCorBotaoColor',this.value)"></div></div>
         <div class="form-group"><label>Cor Texto Botão</label><div class="color-group"><input type="color" id="pCorBotaoTextoColor" value="#ffffff" oninput="syncColor('pCorBotaoTexto',this.value)"><input type="text" id="pCorBotaoTexto" value="#ffffff" oninput="syncColorPicker('pCorBotaoTextoColor',this.value)"></div></div>
       </div>
       <h3>Fontes</h3>
       <div class="form-row">
-        <div class="form-group"><label>Fonte Títulos</label><select id="pFonteTitulo"><option>Segoe UI</option><option>Roboto</option><option>Open Sans</option><option>Lato</option><option>Montserrat</option><option>Poppins</option><option>Inter</option></select></div>
-        <div class="form-group"><label>Fonte Corpo</label><select id="pFonteCorpo"><option>Segoe UI</option><option>Roboto</option><option>Open Sans</option><option>Lato</option><option>Montserrat</option><option>Poppins</option><option>Inter</option></select></div>
+        <div class="form-group"><label>Fonte Títulos</label><select id="pFonteTitulo"><option>Montserrat</option><option>Segoe UI</option><option>Roboto</option><option>Open Sans</option><option>Lato</option><option>Poppins</option><option>Inter</option></select></div>
+        <div class="form-group"><label>Fonte Corpo</label><select id="pFonteCorpo"><option>Montserrat</option><option>Segoe UI</option><option>Roboto</option><option>Open Sans</option><option>Lato</option><option>Poppins</option><option>Inter</option></select></div>
       </div>
       <h3>Imagens</h3>
       <div class="form-group"><label>URL do Logo</label><input type="url" id="pLogoUrl" placeholder="https://..."></div>
@@ -608,7 +617,7 @@
         <button class="btn btn-outline" onclick="atualizarPreview()">👁 Preview</button>
       </div>
       <h3>Preview</h3>
-      <div class="preview-box"><div class="preview-header" id="previewHeader" style="background:linear-gradient(135deg,#667eea,#764ba2)"><div id="previewLogo"></div><div style="font-size:1.1rem;font-weight:700">📅 Agendamento Online</div><div style="opacity:.8;font-size:.85rem">Agende seu horário</div></div><div class="preview-body" id="previewBody" style="background:#f5f5f5;padding:20px"><div style="margin-bottom:10px;font-weight:600">Escolha o serviço:</div><div style="border:2px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:10px">Corte Simples — R$ 35</div><div class="preview-btn" id="previewBtn" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;text-align:center;border-radius:8px;width:100%">Confirmar Agendamento</div></div></div>
+      <div class="preview-box"><div class="preview-header" id="previewHeader" style="background:linear-gradient(135deg,#00A8C6,#004D61)"><div id="previewLogo"></div><div style="font-size:1.1rem;font-weight:700">📅 Agendamento Online</div><div style="opacity:.8;font-size:.85rem">Agende seu horário</div></div><div class="preview-body" id="previewBody" style="background:#f0f4f6;padding:20px"><div style="margin-bottom:10px;font-weight:600">Escolha o serviço:</div><div style="border:2px solid #d8e4e8;border-radius:8px;padding:12px;margin-bottom:10px">Corte Simples — R$ 35</div><div class="preview-btn" id="previewBtn" style="background:linear-gradient(135deg,#00A8C6,#004D61);color:#fff;text-align:center;border-radius:8px;width:100%">Confirmar Agendamento</div></div></div>
     </div>
   </div>
 
@@ -1375,8 +1384,8 @@
         setField('pCorFundo', p.corFundo); setField('pCorFundoColor', p.corFundo);
         setField('pCorBotao', p.corBotao); setField('pCorBotaoColor', p.corBotao);
         setField('pCorBotaoTexto', p.corBotaoTexto); setField('pCorBotaoTextoColor', p.corBotaoTexto);
-        setSelect('pFonteTitulo', p.fonteTitulo || 'Segoe UI');
-        setSelect('pFonteCorpo', p.fonteCorpo || 'Segoe UI');
+        setSelect('pFonteTitulo', p.fonteTitulo || 'Montserrat');
+        setSelect('pFonteCorpo', p.fonteCorpo || 'Montserrat');
         setField('pLogoUrl', p.logoUrl || ''); setField('pBannerUrl', p.bannerUrl || ''); setField('pFaviconUrl', p.faviconUrl || '');
         atualizarPreview();
       } catch (e) { console.warn('Erro personalização:', e); }
@@ -1860,6 +1869,12 @@
         .catch(() => logout());
     } else {
       document.getElementById('loginOverlay').classList.remove('hidden');
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
     }
   </script>
   </body>
