@@ -208,10 +208,15 @@
       align-items: start;
     }
     .ag-card:last-child { border-bottom: none; }
+    .ag-hora-bloco { display: flex; flex-direction: column; align-items: center; gap: 2px; padding-top: 2px; }
     .ag-hora {
-      font-size: 1.2rem; font-weight: 800;
+      font-size: 1.15rem; font-weight: 800;
       color: var(--cor-primaria); line-height: 1;
-      padding-top: 2px; white-space: nowrap;
+      white-space: nowrap;
+    }
+    .ag-data-mob {
+      font-size: .7rem; font-weight: 700;
+      color: #667C85; white-space: nowrap;
     }
     .ag-info .ag-cliente { font-weight: 700; font-size: .92rem; color: #222; }
     .ag-info .ag-detalhe { font-size: .8rem; color: #667C85; margin-top: 2px; }
@@ -337,7 +342,8 @@
         <table id="agendaTable" style="display:none">
           <thead>
             <tr>
-              <th>Data / Hora</th>
+              <th>Data</th>
+              <th>Hora</th>
               <th>Cliente</th>
               <th>Telefone</th>
               <th>Serviço</th>
@@ -505,12 +511,14 @@
     }
 
     // === FORMATAR DATA/HORA ===
-    function formatarDataHora(dataHora) {
+    const TZ = 'America/Sao_Paulo';
+    function formatarData(dataHora) {
       if (!dataHora) return '—';
-      const d = new Date(dataHora);
-      const data = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-      const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      return `${data} ${hora}`;
+      return new Date(dataHora).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: TZ });
+    }
+    function formatarHora(dataHora) {
+      if (!dataHora) return '—';
+      return new Date(dataHora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
     }
 
     // === INIT ===
@@ -605,13 +613,15 @@
         const tbody = document.getElementById('agendaBody');
         tbody.innerHTML = '';
         agendamentos.forEach(ag => {
-          const dataHora = formatarDataHora(ag.data_hora);
+          const data = formatarData(ag.data_hora);
+          const hora = formatarHora(ag.data_hora);
           const tel = ag.cliente_telefone || '—';
           const servico = servicosMap[ag.servico_id] || ag.servico_id || '—';
           const prestador = ag.prestadorNome || prestadoresMap[ag.prestador_id] || '—';
           tbody.innerHTML += `
             <tr>
-              <td class="hora-cell">${dataHora}</td>
+              <td class="hora-cell">${data}</td>
+              <td class="hora-cell">${hora}</td>
               <td><strong>${ag.cliente_nome || '—'}</strong></td>
               <td>${tel}</td>
               <td>${servico}</td>
@@ -626,14 +636,17 @@
         const list = document.getElementById('agendaList');
         list.innerHTML = '';
         agendamentos.forEach(ag => {
-          const dataHora = formatarDataHora(ag.data_hora);
+          const data = formatarData(ag.data_hora);
+          const hora = formatarHora(ag.data_hora);
           const servico = servicosMap[ag.servico_id] || ag.servico_id || '—';
           const prestador = ag.prestadorNome || prestadoresMap[ag.prestador_id] || '—';
-          const [, hora] = dataHora.split(' ');
           const div = document.createElement('div');
           div.className = 'ag-card';
           div.innerHTML = `
-            <div class="ag-hora">${hora || dataHora}</div>
+            <div class="ag-hora-bloco">
+              <div class="ag-hora">${hora}</div>
+              <div class="ag-data-mob">${data}</div>
+            </div>
             <div class="ag-info">
               <div class="ag-cliente">${ag.cliente_nome || '—'}</div>
               <div class="ag-detalhe">🔧 ${servico} · 👤 ${prestador}</div>
