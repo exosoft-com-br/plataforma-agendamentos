@@ -166,7 +166,11 @@
     }
 
     /* ===== TABELA — DESKTOP ===== */
-    .table-scroll { overflow-x: auto; }
+    /* Visibilidade controlada pela classe .tem-dados no .agenda-card */
+    .table-scroll { overflow-x: auto; display: none; }
+    .agenda-list { display: none; }
+    .agenda-card.tem-dados .table-scroll { display: block; }
+    .agenda-card.tem-dados .agenda-list { display: none; }
     table { width: 100%; border-collapse: collapse; font-size: .88rem; }
     th {
       background: #f5f8fa; padding: 11px 14px;
@@ -251,8 +255,8 @@
       .btn-atualizar { margin-left: 0; width: 100%; }
 
       /* Esconde tabela, exibe cards */
-      .table-scroll { display: none; }
-      .agenda-list { display: block; }
+      .agenda-card.tem-dados .table-scroll { display: none; }
+      .agenda-card.tem-dados .agenda-list { display: block; }
     }
 
     @media (max-width: 400px) {
@@ -335,7 +339,7 @@
 
       <!-- Tabela (desktop) -->
       <div class="table-scroll">
-        <table id="agendaTable" style="display:none">
+        <table id="agendaTable">
           <thead>
             <tr>
               <th>Data</th>
@@ -568,9 +572,8 @@
       const clienteTelefone = document.getElementById('clienteTelefone').value.trim();
 
       // Loading state
-      document.getElementById('agendaTable').style.display = 'none';
+      document.querySelector('.agenda-card').classList.remove('tem-dados');
       document.getElementById('agendaList').innerHTML = '';
-      document.getElementById('agendaList').style.display = 'none';
       document.getElementById('agendaEmpty').innerHTML = '<div class="loading-state">⏳ Buscando agendamentos...</div>';
       document.getElementById('agendaEmpty').style.display = 'block';
       document.getElementById('agendaCount').textContent = '...';
@@ -596,8 +599,7 @@
           `${agendamentos.length} agendamentos`;
 
         if (!agendamentos.length) {
-          document.getElementById('agendaTable').style.display = 'none';
-          document.getElementById('agendaList').style.display = 'none';
+          document.querySelector('.agenda-card').classList.remove('tem-dados');
           document.getElementById('agendaEmpty').innerHTML =
             '<div class="empty-state"><div class="empty-icon">📅</div><p>Nenhum agendamento encontrado para os filtros selecionados.</p></div>';
           document.getElementById('agendaEmpty').style.display = 'block';
@@ -629,8 +631,6 @@
               <td class="protocolo-cell">${ag.protocolo || '—'}</td>
             </tr>`;
         });
-        document.getElementById('agendaTable').style.display = 'table';
-
         // ===== CARDS MOBILE =====
         const list = document.getElementById('agendaList');
         list.innerHTML = '';
@@ -655,13 +655,12 @@
             <div class="ag-status">${badgeStatus(ag.status)}</div>`;
           list.appendChild(div);
         });
-        list.style.display = 'block';
 
+        document.querySelector('.agenda-card').classList.add('tem-dados');
         document.getElementById('agendaEmpty').style.display = 'none';
 
       } catch (e) {
-        document.getElementById('agendaTable').style.display = 'none';
-        document.getElementById('agendaList').style.display = 'none';
+        document.querySelector('.agenda-card').classList.remove('tem-dados');
         document.getElementById('agendaEmpty').innerHTML =
           `<div class="empty-state"><div class="empty-icon">❌</div><p>Erro ao buscar agendamentos.</p></div>`;
         document.getElementById('agendaEmpty').style.display = 'block';
