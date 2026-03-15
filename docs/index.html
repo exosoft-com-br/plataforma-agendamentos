@@ -457,10 +457,20 @@
             return;
           }
 
-          if (config.prestadores.length > 1) {
+          // Filtra apenas o(s) prestador(es) vinculado(s) a este serviço
+          const vinculados = s.prestadorId
+            ? config.prestadores.filter(p => p.id === s.prestadorId)
+            : config.prestadores;
+          const lista = vinculados.length > 0 ? vinculados : config.prestadores;
+
+          if (lista.length === 1) {
+            // Apenas um profissional para este serviço — seleciona automaticamente
+            selectedPrestador = lista[0];
+            showStep(3);
+          } else {
             const prestadoresList = document.getElementById('prestadoresList');
             prestadoresList.innerHTML = '';
-            config.prestadores.forEach(p => {
+            lista.forEach(p => {
               const pCard = document.createElement('div');
               pCard.className = 'service-card prestador-card';
               pCard.innerHTML = `<div><div class="name">👤 ${p.nome}</div><div class="meta">${p.categoria || ''}</div></div>`;
@@ -468,9 +478,6 @@
               prestadoresList.appendChild(pCard);
             });
             showStep('2_5');
-          } else {
-            selectedPrestador = config.prestadores[0];
-            showStep(3);
           }
         };
         list.appendChild(card);

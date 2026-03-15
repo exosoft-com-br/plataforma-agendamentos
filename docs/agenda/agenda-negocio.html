@@ -227,6 +227,60 @@
     .ag-info .ag-protocolo { font-size: .72rem; color: #aaa; font-family: monospace; margin-top: 4px; }
     .ag-status { padding-top: 2px; }
 
+    /* ===== MODAL DE EDIÇÃO ===== */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); backdrop-filter: blur(3px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000; padding: 16px;
+      opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: #fff; border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      padding: 24px; width: 100%; max-width: 460px;
+      transform: translateY(20px); transition: transform .2s;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal h3 {
+      font-size: .95rem; font-weight: 800; color: var(--cor-secundaria);
+      margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal h3 button {
+      background: none; border: none; cursor: pointer;
+      font-size: 1.2rem; color: #999; padding: 0;
+    }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal-grid .full { grid-column: 1 / -1; }
+    .modal label { font-size: .75rem; font-weight: 700; color: #667C85; text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 4px; }
+    .modal input, .modal select {
+      width: 100%; padding: 9px 11px; border: 2px solid #dde4e8;
+      border-radius: 8px; font-size: .9rem; font-family: var(--fonte-corpo); color: #222;
+      transition: border-color .2s;
+    }
+    .modal input:focus, .modal select:focus { outline: none; border-color: var(--cor-primaria); }
+    .modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+    .btn-salvar {
+      flex: 1; padding: 10px; border: none; border-radius: 8px;
+      background: var(--cor-primaria); color: #fff;
+      font-size: .88rem; font-weight: 700; cursor: pointer; font-family: var(--fonte-corpo);
+    }
+    .btn-salvar:hover { opacity: .9; }
+    .btn-cancelar-modal {
+      padding: 10px 16px; border: 1px solid #dde4e8; border-radius: 8px;
+      background: #f0f4f6; color: #667C85;
+      font-size: .88rem; font-weight: 700; cursor: pointer; font-family: var(--fonte-corpo);
+    }
+    /* Botão editar nas linhas */
+    .btn-editar {
+      padding: 4px 10px; border: 1px solid #dde4e8; border-radius: 6px;
+      background: #f5f8fa; color: var(--cor-secundaria);
+      font-size: .78rem; font-weight: 700; cursor: pointer; font-family: var(--fonte-corpo);
+      white-space: nowrap;
+    }
+    .btn-editar:hover { background: var(--cor-primaria); color: #fff; border-color: var(--cor-primaria); }
+
     /* ===== ESTADOS ===== */
     .empty-state {
       text-align: center; padding: 48px 24px; color: #667C85;
@@ -350,6 +404,7 @@
               <th>Prestador</th>
               <th>Status</th>
               <th>Protocolo</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="agendaBody"></tbody>
@@ -367,6 +422,55 @@
 
   </div>
 
+  <!-- Modal de edição -->
+  <div class="modal-overlay" id="modalOverlay" onclick="fecharModal(event)">
+    <div class="modal">
+      <h3>
+        ✏️ Editar Agendamento
+        <button onclick="fecharModal()">✕</button>
+      </h3>
+      <div class="modal-grid">
+        <div class="full">
+          <label>Cliente</label>
+          <input type="text" id="editNome">
+        </div>
+        <div class="full">
+          <label>Telefone</label>
+          <input type="tel" id="editTelefone">
+        </div>
+        <div>
+          <label>Data</label>
+          <input type="date" id="editData">
+        </div>
+        <div>
+          <label>Hora</label>
+          <input type="time" id="editHora">
+        </div>
+        <div>
+          <label>Prestador</label>
+          <select id="editPrestador"></select>
+        </div>
+        <div>
+          <label>Serviço</label>
+          <select id="editServico"></select>
+        </div>
+        <div class="full">
+          <label>Status</label>
+          <select id="editStatus">
+            <option value="confirmado">✓ Confirmado</option>
+            <option value="concluido">★ Concluído</option>
+            <option value="cancelado">✕ Cancelado</option>
+          </select>
+        </div>
+      </div>
+      <div id="editErro" style="color:#c62828;font-size:.82rem;margin-top:8px"></div>
+      <div class="modal-actions">
+        <button class="btn-cancelar-modal" onclick="fecharModal()">Cancelar</button>
+        <button class="btn-salvar" onclick="salvarEdicao()">Salvar alterações</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div class="toast" id="toast">
     <span id="toastMsg"></span>
@@ -378,6 +482,8 @@
     let NICHO_ID = null; // preenchido após carregar negocio
     let servicosCache = [];
     let prestadoresCache = [];
+    let agendamentosCache = []; // mapa id → agendamento para edição
+    let editandoId = null;
 
     function apiFetch(path, opts = {}) {
       const headers = { 'Content-Type': 'application/json', ...opts.headers };
@@ -610,6 +716,9 @@
         const servicosMap = servicosCache.reduce((m, s) => { m[s.id] = s.nome; return m; }, {});
         const prestadoresMap = prestadoresCache.reduce((m, p) => { m[p.id] = p.nome; return m; }, {});
 
+        // Guarda cache para o modal de edição
+        agendamentosCache = agendamentos;
+
         // ===== TABELA DESKTOP =====
         const tbody = document.getElementById('agendaBody');
         tbody.innerHTML = '';
@@ -629,8 +738,10 @@
               <td>${prestador}</td>
               <td>${badgeStatus(ag.status)}</td>
               <td class="protocolo-cell">${ag.protocolo || '—'}</td>
+              <td><button class="btn-editar" onclick="abrirModal('${ag.id}')">✏️ Editar</button></td>
             </tr>`;
         });
+
         // ===== CARDS MOBILE =====
         const list = document.getElementById('agendaList');
         list.innerHTML = '';
@@ -652,7 +763,10 @@
               <div class="ag-detalhe">📞 ${ag.cliente_telefone || '—'}</div>
               <div class="ag-protocolo">${ag.protocolo || ''}</div>
             </div>
-            <div class="ag-status">${badgeStatus(ag.status)}</div>`;
+            <div class="ag-status" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+              ${badgeStatus(ag.status)}
+              <button class="btn-editar" onclick="abrirModal('${ag.id}')">✏️</button>
+            </div>`;
           list.appendChild(div);
         });
 
@@ -665,6 +779,93 @@
           `<div class="empty-state"><div class="empty-icon">❌</div><p>Erro ao buscar agendamentos.</p></div>`;
         document.getElementById('agendaEmpty').style.display = 'block';
         document.getElementById('agendaCount').textContent = 'Erro';
+      }
+    }
+
+    // === MODAL DE EDIÇÃO ===
+    function abrirModal(id) {
+      const ag = agendamentosCache.find(a => a.id === id);
+      if (!ag) return;
+      editandoId = id;
+
+      // Preencher campos
+      document.getElementById('editNome').value = ag.cliente_nome || '';
+      document.getElementById('editTelefone').value = ag.cliente_telefone || '';
+      document.getElementById('editStatus').value = ag.status || 'confirmado';
+
+      // Data e hora separados
+      const dt = ag.data_hora ? new Date(ag.data_hora) : null;
+      if (dt) {
+        document.getElementById('editData').value = dt.toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+        document.getElementById('editHora').value = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+      }
+
+      // Selects de prestador e serviço
+      const selPrest = document.getElementById('editPrestador');
+      selPrest.innerHTML = '';
+      prestadoresCache.forEach(p => {
+        const o = document.createElement('option');
+        o.value = p.id;
+        o.textContent = p.nome + (p.categoria ? ` — ${p.categoria}` : '');
+        if (p.id === ag.prestador_id) o.selected = true;
+        selPrest.appendChild(o);
+      });
+
+      const selServ = document.getElementById('editServico');
+      selServ.innerHTML = '';
+      servicosCache.forEach(s => {
+        const o = document.createElement('option');
+        o.value = s.id;
+        o.textContent = s.nome;
+        if (s.id === ag.servico_id) o.selected = true;
+        selServ.appendChild(o);
+      });
+
+      document.getElementById('editErro').textContent = '';
+      document.getElementById('modalOverlay').classList.add('open');
+    }
+
+    function fecharModal(evt) {
+      if (evt && evt.target !== document.getElementById('modalOverlay')) return;
+      document.getElementById('modalOverlay').classList.remove('open');
+      editandoId = null;
+    }
+
+    async function salvarEdicao() {
+      if (!editandoId) return;
+      document.getElementById('editErro').textContent = '';
+
+      const data = document.getElementById('editData').value;
+      const hora = document.getElementById('editHora').value;
+      // Combina data + hora como horário de SP (UTC-3)
+      const dataHora = data && hora ? `${data}T${hora}:00-03:00` : undefined;
+
+      const body = {
+        clienteNome: document.getElementById('editNome').value.trim(),
+        clienteTelefone: document.getElementById('editTelefone').value.trim(),
+        status: document.getElementById('editStatus').value,
+        prestadorId: document.getElementById('editPrestador').value,
+        servicoId: document.getElementById('editServico').value,
+        ...(dataHora ? { dataHora } : {}),
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/api/booking/${editandoId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.sucesso) {
+          document.getElementById('editErro').textContent = json.erro || 'Erro ao salvar.';
+          return;
+        }
+        document.getElementById('modalOverlay').classList.remove('open');
+        editandoId = null;
+        mostrarToast('Agendamento atualizado!');
+        carregarAgenda();
+      } catch (e) {
+        document.getElementById('editErro').textContent = `Erro: ${e.message}`;
       }
     }
 

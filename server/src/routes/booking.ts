@@ -365,3 +365,58 @@ bookingRouter.get("/booking", async (req: Request, res: Response) => {
     res.status(500).json({ erro: "Erro interno ao buscar agendamentos." });
   }
 });
+
+/**
+ * PUT /api/booking/:id
+ * Edita um agendamento existente (status, data/hora, cliente, prestador, serviço).
+ */
+bookingRouter.put("/booking/:id", async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    if (!id) { res.status(400).json({ erro: "ID do agendamento obrigatório." }); return; }
+
+    const { status, clienteNome, clienteTelefone, dataHora, prestadorId, servicoId } = req.body;
+
+    const updates: Record<string, any> = {
+      atualizado_em: new Date().toISOString(),
+    };
+
+    if (status !== undefined) {
+      if (!["confirmado", "cancelado", "concluido"].includes(status)) {
+        res.status(400).json({ erro: "Status inválido. Use: confirmado, cancelado ou concluido." });
+        return;
+      }
+      updates.status = status;
+    }
+    if (clienteNome !== undefined) updates.cliente_nome = sanitizar(clienteNome);
+    if (clienteTelefone !== undefined) updates.cliente_telefone = (clienteTelefone as string).replace(/\D/g, "");
+    if (prestadorId !== undefined) updates.prestador_id = sanitizarId(prestadorId);
+    if (servicoId !== undefined) updates.servico_id = sanitizarId(servicoId);
+    if (dataHora !== undefined) {
+      const dataHoraObj = validarDataHora(dataHora);
+      if (!dataHoraObj) { res.status(400).json({ erro: "Formato de data/hora inválido." }); return; }
+      updates.data_hora = dataHoraObj.toISOString();
+    }
+
+    if (Object.keys(updates).length === 1) {
+      res.status(400).json({ erro: "Nenhum campo para atualizar." });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("agendamentos")
+      .update(updates)
+      .eq("id", id);
+
+    if (error) {
+      console.error("Erro ao editar agendamento:", error);
+      res.status(500).json({ erro: "Erro ao atualizar agendamento." });
+      return;
+    }
+
+    res.json({ sucesso: true });
+  } catch (erro) {
+    console.error("Erro ao editar agendamento:", erro);
+    res.status(500).json({ erro: "Erro interno ao editar agendamento." });
+  }
+});
