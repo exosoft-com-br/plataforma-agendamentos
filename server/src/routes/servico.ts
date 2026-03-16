@@ -1,7 +1,6 @@
 import { Router, Request, Response } from "express";
 import { supabase } from "../supabaseClient";
 import { sanitizar, sanitizarId } from "../utils/sanitizar";
-import { v4 as uuidv4 } from "uuid";
 
 export const servicoRouter = Router();
 
@@ -74,7 +73,7 @@ servicoRouter.post("/prestadores", async (req: Request, res: Response) => {
     const whatsappNumero = (req.body.whatsappNumero || "").replace(/\D/g, "") || null;
 
     // Gerar id único
-    const id = sanitizarId(req.body.id) || uuidv4();
+    const id = sanitizarId(req.body.id) || `prest-${Date.now()}`;
 
     if (!nichoId || !nome) {
       res.status(400).json({ erro: "Campos obrigatórios: nichoId, nome" });
