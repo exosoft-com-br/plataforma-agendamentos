@@ -198,7 +198,19 @@ servicoRouter.delete("/prestadores/:prestadorId", async (req: Request, res: Resp
       return;
     }
 
-    // Excluir serviços vinculados primeiro
+    // Excluir agendamentos vinculados ao prestador
+    await supabase.from("agendamentos").delete().eq("prestador_id", prestadorId);
+
+    // Excluir serviços vinculados (e seus agendamentos)
+    const { data: servicosVinculados } = await supabase
+      .from("servicos")
+      .select("id")
+      .eq("prestador_id", prestadorId);
+
+    for (const s of servicosVinculados || []) {
+      await supabase.from("agendamentos").delete().eq("servico_id", s.id);
+    }
+
     await supabase.from("servicos").delete().eq("prestador_id", prestadorId);
 
     const { error } = await supabase
@@ -417,6 +429,9 @@ servicoRouter.delete("/servicos/:servicoId", async (req: Request, res: Response)
       res.status(400).json({ erro: "servicoId inválido." });
       return;
     }
+
+    // Excluir agendamentos vinculados primeiro
+    await supabase.from("agendamentos").delete().eq("servico_id", servicoId);
 
     const { error } = await supabase
       .from("servicos")

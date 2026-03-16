@@ -81,6 +81,11 @@ CREATE POLICY "Nichos são públicos" ON nichos FOR SELECT USING (true);
 CREATE POLICY "Prestadores são públicos" ON prestadores FOR SELECT USING (true);
 CREATE POLICY "Serviços são públicos" ON servicos FOR SELECT USING (true);
 
+-- Nichos: escrita via API
+CREATE POLICY "Nichos inserção via API" ON nichos FOR INSERT WITH CHECK (true);
+CREATE POLICY "Nichos atualização via API" ON nichos FOR UPDATE USING (true);
+CREATE POLICY "Nichos exclusão via API" ON nichos FOR DELETE USING (true);
+
 -- Prestadores: escrita via API
 CREATE POLICY "Prestadores inserção via API" ON prestadores FOR INSERT WITH CHECK (true);
 CREATE POLICY "Prestadores atualização via API" ON prestadores FOR UPDATE USING (true);
@@ -95,3 +100,4 @@ CREATE POLICY "Serviços exclusão via API" ON servicos FOR DELETE USING (true);
 CREATE POLICY "Agendamentos leitura via API" ON agendamentos FOR SELECT USING (true);
 CREATE POLICY "Agendamentos inserção via API" ON agendamentos FOR INSERT WITH CHECK (true);
 CREATE POLICY "Agendamentos atualização via API" ON agendamentos FOR UPDATE USING (true);
+CREATE POLICY "Agendamentos exclusão via API" ON agendamentos FOR DELETE USING (true);
