@@ -50,8 +50,9 @@ export function gerarSlotsDoDia(
   duracaoMinutos: number
 ): Slot[] {
   const slots: Slot[] = [];
-  const dataObj = new Date(`${data}T00:00:00`);
-  const diaSemana = dataObj.getDay();
+  // Usar meio-dia UTC para calcular o dia da semana sem risco de virar data por timezone
+  const dataObj = new Date(`${data}T12:00:00Z`);
+  const diaSemana = dataObj.getUTCDay();
 
   if (!prestador.horarioAtendimento.diasSemana.includes(diaSemana)) {
     return slots;
@@ -70,8 +71,8 @@ export function gerarSlotsDoDia(
     const mF = (minutosAtual + duracaoMinutos) % 60;
 
     slots.push({
-      inicio: `${data}T${String(hI).padStart(2, "0")}:${String(mI).padStart(2, "0")}:00`,
-      fim: `${data}T${String(hF).padStart(2, "0")}:${String(mF).padStart(2, "0")}:00`,
+      inicio: `${data}T${String(hI).padStart(2, "0")}:${String(mI).padStart(2, "0")}:00-03:00`,
+      fim: `${data}T${String(hF).padStart(2, "0")}:${String(mF).padStart(2, "0")}:00-03:00`,
       disponivel: true,
     });
 

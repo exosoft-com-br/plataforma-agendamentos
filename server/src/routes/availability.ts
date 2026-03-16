@@ -85,9 +85,9 @@ availabilityRouter.get("/availability", async (req: Request, res: Response) => {
       return;
     }
 
-    // 4. Buscar agendamentos confirmados do dia
-    const inicioDoDia = `${dataConsulta}T00:00:00`;
-    const fimDoDia = `${dataConsulta}T23:59:59`;
+    // 4. Buscar agendamentos confirmados do dia (horário de Brasília UTC-3)
+    const inicioDoDia = `${dataConsulta}T00:00:00-03:00`;
+    const fimDoDia = `${dataConsulta}T23:59:59-03:00`;
 
     const { data: agendamentos } = await supabase
       .from("agendamentos")
