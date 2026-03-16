@@ -76,19 +76,6 @@ servicoRouter.post("/prestadores", async (req: Request, res: Response) => {
     // Gerar id único
     const id = sanitizarId(req.body.id) || uuidv4();
 
-    // Função para gerar slug único
-    function gerarSlug(nome: string, sufixo: string) {
-      return (
-        nome
-          .toLowerCase()
-          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)/g, '')
-        + '-' + sufixo
-      );
-    }
-    const slug = gerarSlug(nome, id.substring(0, 8));
-
     if (!nichoId || !nome) {
       res.status(400).json({ erro: "Campos obrigatórios: nichoId, nome" });
       return;
@@ -105,7 +92,6 @@ servicoRouter.post("/prestadores", async (req: Request, res: Response) => {
       .from("prestadores")
       .insert({
         id,
-        slug,
         nicho_id: nichoId,
         negocio_id: negocioId,
         nome,
