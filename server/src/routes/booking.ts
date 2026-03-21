@@ -460,47 +460,80 @@ bookingRouter.get("/clientes/buscar", async (req: Request, res: Response) => {
       return;
     }
 
-    // 1ª tentativa: tabela clientes (mais rápida, tem contador)
-    const { data: clienteRow } = await supabase
-      .from("clientes")
-      .select("nome, telefone, total_agendamentos")
-      .eq("negocio_id", negocioId)
-      .ilike("telefone", `%${telefone}%`)
-      .limit(1)
-      .maybeSingle();
+    const tel = `%${telefone}%`;
 
-    if (clienteRow) {
-      res.json({
-        encontrado: true,
-        nome: clienteRow.nome,
-        telefone: clienteRow.telefone,
-        totalAgendamentos: clienteRow.total_agendamentos,
-      });
-      return;
-    }
+    // ── 1ª via: tabela clientes (mais rápida, tem contador) ──────────────
+    try {
+      const { data: clienteRow } = await supabase
+        .from("clientes")
+        .select("nome, telefone, total_agendamentos")
+        .eq("negocio_id", negocioId)
+        .ilike("telefone", tel)
+        .limit(1)
+        .maybeSingle();
 
-    // 2ª tentativa: fallback nos agendamentos existentes (funciona sem a tabela clientes)
-    const { data: negocioRow } = await supabase
-      .from("negocios")
-      .select("nicho_id")
-      .eq("id", negocioId)
-      .single();
+      if (clienteRow?.nome) {
+        res.json({
+          encontrado: true,
+          nome: clienteRow.nome,
+          telefone: clienteRow.telefone,
+          totalAgendamentos: clienteRow.total_agendamentos,
+        });
+        return;
+      }
+    } catch (_) { /* tabela ainda não existe — continua para o fallback */ }
 
-    if (negocioRow?.nicho_id) {
-      const { data: agRow } = await supabase
+    // ── 2ª via: agendamentos via prestadores.negocio_id ──────────────────
+    const { data: prestRows } = await supabase
+      .from("prestadores")
+      .select("id")
+      .eq("negocio_id", negocioId);
+
+    const prestadorIds = (prestRows || []).map((p: any) => p.id);
+
+    if (prestadorIds.length > 0) {
+      const { data: agPrest } = await supabase
         .from("agendamentos")
         .select("cliente_nome, cliente_telefone")
-        .eq("nicho_id", negocioRow.nicho_id)
-        .ilike("cliente_telefone", `%${telefone}%`)
+        .in("prestador_id", prestadorIds)
+        .ilike("cliente_telefone", tel)
         .order("criado_em", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (agRow) {
+      if (agPrest?.cliente_nome) {
         res.json({
           encontrado: true,
-          nome: agRow.cliente_nome,
-          telefone: agRow.cliente_telefone,
+          nome: agPrest.cliente_nome,
+          telefone: agPrest.cliente_telefone,
+          totalAgendamentos: null,
+        });
+        return;
+      }
+    }
+
+    // ── 3ª via: agendamentos via negocios.nicho_id ───────────────────────
+    const { data: negocioRow } = await supabase
+      .from("negocios")
+      .select("nicho_id")
+      .eq("id", negocioId)
+      .maybeSingle();
+
+    if (negocioRow?.nicho_id) {
+      const { data: agNicho } = await supabase
+        .from("agendamentos")
+        .select("cliente_nome, cliente_telefone")
+        .eq("nicho_id", negocioRow.nicho_id)
+        .ilike("cliente_telefone", tel)
+        .order("criado_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (agNicho?.cliente_nome) {
+        res.json({
+          encontrado: true,
+          nome: agNicho.cliente_nome,
+          telefone: agNicho.cliente_telefone,
           totalAgendamentos: null,
         });
         return;

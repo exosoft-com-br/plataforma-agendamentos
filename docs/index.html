@@ -630,10 +630,10 @@
     let _buscaTimer = null;
 
     function onTelefoneInput() {
-      const tel = document.getElementById('clienteTelefone').value.replace(/\D/g, '');
       const hint     = document.getElementById('clienteHint');
       const buscando = document.getElementById('hintBuscando');
-      const nomeInput = document.getElementById('clienteNome');
+
+      const tel = document.getElementById('clienteTelefone').value.replace(/\D/g, '');
 
       // Limpa hints se telefone curto
       if (tel.length < 10) {
@@ -649,21 +649,32 @@
       hint.classList.remove('show');
 
       _buscaTimer = setTimeout(async () => {
-        if (!NEGOCIO_ID) { buscando.classList.remove('show'); return; }
+        // Re-lê o valor no momento em que o timer dispara (garante valor mais atual)
+        const telAtual = document.getElementById('clienteTelefone').value.replace(/\D/g, '');
+
+        if (!NEGOCIO_ID || telAtual.length < 10) {
+          buscando.classList.remove('show');
+          return;
+        }
+
         try {
-          const res = await fetch(
-            `${API_URL}/api/clientes/buscar?negocioId=${encodeURIComponent(NEGOCIO_ID)}&telefone=${encodeURIComponent(tel)}`
+          const res  = await fetch(
+            `${API_URL}/api/clientes/buscar` +
+            `?negocioId=${encodeURIComponent(NEGOCIO_ID)}` +
+            `&telefone=${encodeURIComponent(telAtual)}`
           );
+
+          if (!res.ok) { buscando.classList.remove('show'); return; }
+
           const json = await res.json();
           buscando.classList.remove('show');
 
-          if (json.encontrado) {
+          if (json.encontrado && json.nome) {
             document.getElementById('hintNome').textContent = json.nome;
             hint.classList.add('show');
-            // Preenche o nome apenas se o campo estiver vazio
-            if (!nomeInput.value.trim()) {
-              nomeInput.value = json.nome;
-            }
+            // Preenche o nome só se o campo ainda estiver vazio
+            const nomeInput = document.getElementById('clienteNome');
+            if (!nomeInput.value.trim()) nomeInput.value = json.nome;
           } else {
             hint.classList.remove('show');
           }
