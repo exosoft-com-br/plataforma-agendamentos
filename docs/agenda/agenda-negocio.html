@@ -958,12 +958,25 @@
         const res         = await apiFetch(url);
         const agendamentos = res.agendamentos || [];
 
+        // Mapas de lookup — construídos aqui para uso no cálculo E na renderização
+        const servicosMap    = servicosCache.reduce((m, s) => { m[s.id] = s; return m; }, {});
+        const prestadoresMap = prestadoresCache.reduce((m, p) => { m[p.id] = p.nome; return m; }, {});
+
+        // Resolve preço: preferência ao retorno da API, fallback no servicosCache
+        function resolverPreco(ag) {
+          if (ag.servicoPreco != null) return Number(ag.servicoPreco);
+          const cached = servicosMap[ag.servico_id];
+          if (cached?.preco != null) return Number(cached.preco);
+          return null;
+        }
+
         // ── Cálculo do valor total (apenas confirmados + concluídos) ──
         let totalValor = 0;
         let temPreco   = false;
         agendamentos.forEach(ag => {
-          if (ag.status !== 'cancelado' && ag.servicoPreco != null) {
-            totalValor += Number(ag.servicoPreco);
+          const preco = resolverPreco(ag);
+          if (ag.status !== 'cancelado' && preco != null) {
+            totalValor += preco;
             temPreco = true;
           }
         });
@@ -991,10 +1004,6 @@
           return;
         }
 
-        // Mapas de lookup (fallback para cache local)
-        const servicosMap    = servicosCache.reduce((m, s) => { m[s.id] = s; return m; }, {});
-        const prestadoresMap = prestadoresCache.reduce((m, p) => { m[p.id] = p.nome; return m; }, {});
-
         agendamentosCache = agendamentos;
 
         // ── TABELA DESKTOP ──
@@ -1006,7 +1015,8 @@
           const tel       = ag.cliente_telefone || '—';
           const svc       = ag.servicoNome || servicosMap[ag.servico_id]?.nome || ag.servico_id || '—';
           const prest     = ag.prestadorNome || prestadoresMap[ag.prestador_id] || '—';
-          const precoFmt  = ag.servicoPreco != null ? formatarPreco(ag.servicoPreco) : '—';
+          const preco     = resolverPreco(ag);
+          const precoFmt  = preco != null ? formatarPreco(preco) : '—';
 
           tbody.innerHTML += `
             <tr>
@@ -1031,7 +1041,8 @@
           const hora     = formatarHora(ag.data_hora);
           const svc      = ag.servicoNome || servicosMap[ag.servico_id]?.nome || ag.servico_id || '—';
           const prest    = ag.prestadorNome || prestadoresMap[ag.prestador_id] || '—';
-          const precoFmt = ag.servicoPreco != null ? formatarPreco(ag.servicoPreco) : null;
+          const precoMob = resolverPreco(ag);
+          const precoFmt = precoMob != null ? formatarPreco(precoMob) : null;
 
           const div = document.createElement('div');
           div.className = 'ag-card';
