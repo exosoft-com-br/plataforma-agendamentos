@@ -52,9 +52,9 @@ async function enviarLembretes(): Promise<void> {
       minute: "2-digit",
     });
 
-    const nicho = (ag.nichos as { nome_publico: string } | null)?.nome_publico ?? ag.nicho_id;
-    const prestador = ag.prestadores as { nome: string; whatsapp_numero: string | null } | null;
-    const servico = (ag.servicos as { nome: string } | null)?.nome ?? ag.servico_id;
+    const nicho = (ag.nichos as unknown as { nome_publico: string } | null)?.nome_publico ?? ag.nicho_id;
+    const prestador = ag.prestadores as unknown as { nome: string; whatsapp_numero: string | null } | null;
+    const servico = (ag.servicos as unknown as { nome: string } | null)?.nome ?? ag.servico_id;
 
     // Lembrete para o cliente
     await notificarLembreteCliente({
