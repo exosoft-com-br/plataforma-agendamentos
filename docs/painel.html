@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel do Negócio — Agendei.io</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; min-height: 100vh; }
+
+    /* ── Login ── */
+    #loginScreen {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .login-card {
+      background: #fff; border-radius: 16px; padding: 40px 36px;
+      width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    }
+    .login-card h1 { font-size: 22px; color: #667eea; margin-bottom: 4px; }
+    .login-card p  { font-size: 13px; color: #888; margin-bottom: 24px; }
+    .login-card label { font-size: 12px; color: #555; display: block; margin-bottom: 4px; }
+    .login-card input {
+      width: 100%; padding: 10px 12px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 14px; margin-bottom: 16px;
+    }
+    .login-card input:focus { outline: none; border-color: #667eea; }
+    .btn-login {
+      width: 100%; padding: 12px; background: linear-gradient(135deg,#667eea,#764ba2);
+      color: #fff; border: none; border-radius: 8px; font-size: 15px;
+      font-weight: 600; cursor: pointer;
+    }
+    .btn-login:hover { opacity: .9; }
+    #loginError { color: #e53e3e; font-size: 13px; margin-top: 10px; text-align: center; }
+
+    /* ── Painel ── */
+    #painelScreen { display: none; }
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff; padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    header h2 { font-size: 18px; }
+    header .user-info { font-size: 13px; opacity: .85; display: flex; align-items: center; gap: 14px; }
+    .btn-sair {
+      background: rgba(255,255,255,.2); color: #fff; border: none;
+      padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+    /* Métricas */
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 16px; margin-bottom: 24px; }
+    .metric-card {
+      background: #fff; border-radius: 12px; padding: 20px;
+      text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+    .metric-card .value { font-size: 28px; font-weight: 700; color: #667eea; }
+    .metric-card .label { font-size: 12px; color: #888; margin-top: 4px; }
+
+    /* Filtros */
+    .filters {
+      background: #fff; border-radius: 12px; padding: 16px 20px;
+      display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+      margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+    .filters .fg { display: flex; flex-direction: column; gap: 4px; }
+    .filters label { font-size: 12px; color: #666; }
+    .filters input, .filters select {
+      padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px;
+      font-size: 13px; min-width: 140px;
+    }
+    .btn-filtrar {
+      padding: 8px 18px; background: #667eea; color: #fff;
+      border: none; border-radius: 8px; cursor: pointer; font-size: 13px;
+      align-self: flex-end;
+    }
+    .btn-limpar {
+      padding: 8px 14px; background: none; color: #666;
+      border: 1px solid #ddd; border-radius: 8px; cursor: pointer; font-size: 13px;
+      align-self: flex-end;
+    }
+
+    /* Tabela */
+    .table-wrap {
+      background: #fff; border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06); overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: #f8f9fa; }
+    th { padding: 12px 16px; text-align: left; font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+    td { padding: 13px 16px; border-top: 1px solid #f0f0f0; font-size: 13px; }
+    tr:hover td { background: #fafbff; }
+    .status-badge {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+    }
+    .status-confirmado { background: #e6f9ee; color: #27ae60; }
+    .status-cancelado  { background: #fde8e8; color: #e53e3e; }
+    .status-concluido  { background: #e8f4ff; color: #2b7de9; }
+    .taxa { color: #667eea; font-weight: 600; }
+    #msgVazio { text-align: center; padding: 40px; color: #aaa; font-size: 14px; }
+    #loadingMsg { text-align: center; padding: 32px; color: #888; font-size: 14px; }
+
+    @media(max-width:600px) {
+      th:nth-child(3), td:nth-child(3),
+      th:nth-child(6), td:nth-child(6) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Tela de Login ── -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>📅 Painel do Negócio</h1>
+    <p>Consulte os agendamentos do seu estabelecimento</p>
+    <label>Email</label>
+    <input type="email" id="loginEmail" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')fazerLogin()">
+    <label>Senha</label>
+    <input type="password" id="loginSenha" placeholder="••••••" onkeydown="if(event.key==='Enter')fazerLogin()">
+    <button class="btn-login" onclick="fazerLogin()">Entrar</button>
+    <div id="loginError"></div>
+  </div>
+</div>
+
+<!-- ── Tela do Painel ── -->
+<div id="painelScreen">
+  <header>
+    <h2>📅 <span id="headerNome">Painel do Negócio</span></h2>
+    <div class="user-info">
+      <span id="headerUser"></span>
+      <button class="btn-sair" onclick="sair()">Sair</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Métricas -->
+    <div class="metrics">
+      <div class="metric-card">
+        <div class="value" id="metTotal">–</div>
+        <div class="label">Total do período</div>
+      </div>
+      <div class="metric-card">
+        <div class="value" id="metConfirmados">–</div>
+        <div class="label">Confirmados</div>
+      </div>
+      <div class="metric-card">
+        <div class="value" id="metCancelados">–</div>
+        <div class="label">Cancelados</div>
+      </div>
+      <div class="metric-card">
+        <div class="value" id="metTaxa">–</div>
+        <div class="label">Total em taxas</div>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="filters">
+      <div class="fg">
+        <label>Data início</label>
+        <input type="date" id="fDataInicio">
+      </div>
+      <div class="fg">
+        <label>Data fim</label>
+        <input type="date" id="fDataFim">
+      </div>
+      <div class="fg">
+        <label>Status</label>
+        <select id="fStatus">
+          <option value="">Todos</option>
+          <option value="confirmado">Confirmado</option>
+          <option value="cancelado">Cancelado</option>
+          <option value="concluido">Concluído</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Cliente</label>
+        <input type="text" id="fCliente" placeholder="Nome ou telefone">
+      </div>
+      <button class="btn-filtrar" onclick="carregarAgendamentos()">🔍 Filtrar</button>
+      <button class="btn-limpar" onclick="limparFiltros()">✕ Limpar</button>
+    </div>
+
+    <!-- Tabela -->
+    <div class="table-wrap">
+      <div id="loadingMsg">Carregando agendamentos...</div>
+      <table id="tabelaAgendamentos" style="display:none">
+        <thead>
+          <tr>
+            <th>Protocolo</th>
+            <th>Cliente</th>
+            <th>Profissional</th>
+            <th>Serviço</th>
+            <th>Data / Hora</th>
+            <th>Taxa</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyAgendamentos"></tbody>
+      </table>
+      <div id="msgVazio" style="display:none">Nenhum agendamento encontrado.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = 'https://agendei-io-api.onrender.com/api';
+  let AUTH_TOKEN = null;
+  let NEGOCIO_ID = null;
+  let NEGOCIO_NOME = null;
+
+  // ── Inicialização ──────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('painelToken');
+    const savedNegocio = localStorage.getItem('painelNegocioId');
+    const savedNome = localStorage.getItem('painelNegocioNome');
+    const savedUser = localStorage.getItem('painelUserNome');
+    if (saved && savedNegocio) {
+      AUTH_TOKEN = saved;
+      NEGOCIO_ID = savedNegocio;
+      NEGOCIO_NOME = savedNome;
+      mostrarPainel(savedUser);
+    }
+    // Filtro padrão: mês atual
+    const hoje = new Date();
+    const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    document.getElementById('fDataInicio').value = primeiroDia.toISOString().slice(0,10);
+    document.getElementById('fDataFim').value = hoje.toISOString().slice(0,10);
+  });
+
+  // ── Login ──────────────────────────────────────────────────
+  async function fazerLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const senha = document.getElementById('loginSenha').value;
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = '';
+    if (!email || !senha) { errEl.textContent = 'Preencha email e senha.'; return; }
+
+    try {
+      const res = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha })
+      });
+      const data = await res.json();
+      if (!res.ok || data.erro) { errEl.textContent = data.erro || 'Erro ao fazer login.'; return; }
+
+      const user = data.usuario;
+      if (!user.negocioId) {
+        errEl.textContent = 'Este usuário não está vinculado a nenhum negócio. Contate o administrador.';
+        return;
+      }
+
+      AUTH_TOKEN = data.token;
+      NEGOCIO_ID = user.negocioId;
+      localStorage.setItem('painelToken', AUTH_TOKEN);
+      localStorage.setItem('painelNegocioId', NEGOCIO_ID);
+      localStorage.setItem('painelUserNome', user.nome);
+
+      // Buscar nome do negócio
+      await buscarNomeNegocio();
+      mostrarPainel(user.nome);
+    } catch (e) {
+      errEl.textContent = 'Erro de conexão com o servidor.';
+    }
+  }
+
+  async function buscarNomeNegocio() {
+    try {
+      const res = await fetch(`${API}/negocio/${NEGOCIO_ID}/publico`);
+      if (res.ok) {
+        const d = await res.json();
+        NEGOCIO_NOME = d.negocio?.nomeFantasia || 'Meu Negócio';
+        localStorage.setItem('painelNegocioNome', NEGOCIO_NOME);
+      }
+    } catch { NEGOCIO_NOME = 'Meu Negócio'; }
+  }
+
+  function mostrarPainel(nomeUser) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('painelScreen').style.display = 'block';
+    document.getElementById('headerNome').textContent = NEGOCIO_NOME || 'Painel do Negócio';
+    document.getElementById('headerUser').textContent = nomeUser || '';
+    carregarAgendamentos();
+  }
+
+  function sair() {
+    localStorage.removeItem('painelToken');
+    localStorage.removeItem('painelNegocioId');
+    localStorage.removeItem('painelNegocioNome');
+    localStorage.removeItem('painelUserNome');
+    AUTH_TOKEN = null; NEGOCIO_ID = null; NEGOCIO_NOME = null;
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('painelScreen').style.display = 'none';
+  }
+
+  // ── Agendamentos ───────────────────────────────────────────
+  async function carregarAgendamentos() {
+    document.getElementById('loadingMsg').style.display = 'block';
+    document.getElementById('tabelaAgendamentos').style.display = 'none';
+    document.getElementById('msgVazio').style.display = 'none';
+
+    const params = new URLSearchParams({ negocioId: NEGOCIO_ID });
+    const dataInicio = document.getElementById('fDataInicio').value;
+    const dataFim    = document.getElementById('fDataFim').value;
+    const cliente    = document.getElementById('fCliente').value.trim();
+    if (dataInicio) params.set('dataInicio', dataInicio);
+    if (dataFim)    params.set('dataFim', dataFim);
+    if (cliente) {
+      if (/^\d+$/.test(cliente)) params.set('clienteTelefone', cliente);
+      else params.set('clienteNome', cliente);
+    }
+
+    try {
+      const res = await fetch(`${API}/booking?${params}`, {
+        headers: { Authorization: `Bearer ${AUTH_TOKEN}` }
+      });
+      if (!res.ok) { mostrarErro(); return; }
+      const data = await res.json();
+      let ags = data.agendamentos || [];
+
+      // Filtro de status (client-side, simples)
+      const status = document.getElementById('fStatus').value;
+      if (status) ags = ags.filter(a => a.status === status);
+
+      renderizarTabela(ags);
+    } catch { mostrarErro(); }
+  }
+
+  function renderizarTabela(ags) {
+    document.getElementById('loadingMsg').style.display = 'none';
+    if (!ags.length) {
+      document.getElementById('msgVazio').style.display = 'block';
+      atualizarMetricas([]);
+      return;
+    }
+    document.getElementById('tabelaAgendamentos').style.display = 'table';
+    const tbody = document.getElementById('tbodyAgendamentos');
+    tbody.innerHTML = ags.map(ag => {
+      const dt = new Date(ag.data_hora);
+      const dataFmt = dt.toLocaleString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+      const taxa = ag.taxaCobrada > 0 ? `<span class="taxa">R$ ${ag.taxaCobrada.toFixed(2).replace('.',',')}</span>` : '<span style="color:#bbb">—</span>';
+      const badge = `<span class="status-badge status-${ag.status}">${ag.status}</span>`;
+      return `<tr>
+        <td style="font-family:monospace;font-size:12px">${ag.protocolo}</td>
+        <td><div style="font-weight:500">${ag.cliente_nome}</div><div style="font-size:11px;color:#888">${formatarTel(ag.cliente_telefone)}</div></td>
+        <td>${ag.prestadorNome || '—'}</td>
+        <td>${ag.servicoNome || '—'}</td>
+        <td style="white-space:nowrap">${dataFmt}</td>
+        <td>${taxa}</td>
+        <td>${badge}</td>
+      </tr>`;
+    }).join('');
+    atualizarMetricas(ags);
+  }
+
+  function atualizarMetricas(ags) {
+    const confirmados = ags.filter(a => a.status === 'confirmado').length;
+    const cancelados  = ags.filter(a => a.status === 'cancelado').length;
+    const totalTaxa   = ags.reduce((s, a) => s + (a.taxaCobrada || 0), 0);
+    document.getElementById('metTotal').textContent = ags.length;
+    document.getElementById('metConfirmados').textContent = confirmados;
+    document.getElementById('metCancelados').textContent = cancelados;
+    document.getElementById('metTaxa').textContent = 'R$ ' + totalTaxa.toFixed(2).replace('.',',');
+  }
+
+  function mostrarErro() {
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('msgVazio').textContent = 'Erro ao carregar. Verifique sua conexão.';
+    document.getElementById('msgVazio').style.display = 'block';
+  }
+
+  function limparFiltros() {
+    document.getElementById('fStatus').value = '';
+    document.getElementById('fCliente').value = '';
+    const hoje = new Date();
+    const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    document.getElementById('fDataInicio').value = primeiroDia.toISOString().slice(0,10);
+    document.getElementById('fDataFim').value = hoje.toISOString().slice(0,10);
+    carregarAgendamentos();
+  }
+
+  function formatarTel(t) {
+    if (!t) return '';
+    const d = t.replace(/\D/g,'');
+    if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+    if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+    return t;
+  }
+</script>
+</body>
+</html>

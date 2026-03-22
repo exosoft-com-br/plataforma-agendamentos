@@ -147,6 +147,7 @@ negocioRouter.get("/negocios/:ownerId", async (req: Request, res: Response) => {
       cidade: n.cidade,
       estado: n.estado,
       ativo: n.ativo,
+      taxaAgendamento: n.taxa_agendamento != null ? Number(n.taxa_agendamento) : 0,
       nicho: n.nichos ? {
         nomePublico: n.nichos.nome_publico,
         saudacaoInicial: n.nichos.saudacao_inicial,
@@ -201,6 +202,13 @@ negocioRouter.put("/negocios/:negocioId", async (req: Request, res: Response) =>
       { key: "cidade", column: "cidade", sanitize: sanitizar },
       { key: "estado", column: "estado", sanitize: sanitizar },
     ];
+
+    if (req.body.taxaAgendamento !== undefined) {
+      const taxa = parseFloat(req.body.taxaAgendamento);
+      if (!isNaN(taxa) && taxa >= 0) {
+        updates["taxa_agendamento"] = taxa;
+      }
+    }
 
     for (const f of fields) {
       if (req.body[f.key] !== undefined) {

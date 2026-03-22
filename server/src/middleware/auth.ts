@@ -8,6 +8,7 @@ export interface AuthPayload {
   email: string;
   role: "admin" | "usuario";
   ownerId: string; // admin: próprio id; usuario: id do admin dono
+  negocioId?: string; // usuário vinculado a um negócio específico
 }
 
 declare global {

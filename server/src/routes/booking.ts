@@ -108,6 +108,17 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
       return;
     }
 
+    // Buscar taxa do negócio (para salvar snapshot no agendamento)
+    const { data: negocioTaxa } = await supabase
+      .from("negocios")
+      .select("id, taxa_agendamento, whatsapp_instancia, whatsapp_status")
+      .eq("nicho_id", nichoId)
+      .eq("ativo", true)
+      .limit(1)
+      .single();
+
+    const taxaCobrada = negocioTaxa?.taxa_agendamento ? Number(negocioTaxa.taxa_agendamento) : 0;
+
     // Criar agendamento
     const protocolo = gerarProtocolo();
 
@@ -122,6 +133,7 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
         data_hora: dataHoraObj.toISOString(),
         status: "confirmado",
         protocolo,
+        taxa_cobrada: taxaCobrada,
       })
       .select()
       .single();
@@ -149,13 +161,7 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
     // Notificações + registro de cliente (fire-and-forget)
     // Usa instância WhatsApp do negócio se estiver conectada
     (async () => {
-      const { data: negocioRow } = await supabase
-        .from("negocios")
-        .select("id, whatsapp_instancia, whatsapp_status")
-        .eq("nicho_id", nichoId)
-        .limit(1)
-        .single();
-
+      const negocioRow = negocioTaxa; // já buscado acima
       const negocioId = negocioRow?.id;
       const instancia = negocioRow?.whatsapp_status === "conectado"
         ? (negocioRow.whatsapp_instancia ?? undefined)
@@ -209,6 +215,7 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
         dataHora: agendamento.data_hora,
         status: agendamento.status,
         protocolo,
+        taxaCobrada,
       },
       protocolo,
       mensagemConfirmacao,
@@ -216,6 +223,7 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
         servico: servico.nome,
         prestador: prestador.nome,
         nicho: nicho.nome_publico,
+        taxaCobrada,
       },
     });
   } catch (erro) {
@@ -403,6 +411,7 @@ bookingRouter.get("/booking", autenticar, async (req: Request, res: Response) =>
       prestadorNome: ag.prestadores?.nome || null,
       servicoNome: ag.servicos?.nome || null,
       servicoPreco: ag.servicos?.preco ?? null,
+      taxaCobrada: ag.taxa_cobrada != null ? Number(ag.taxa_cobrada) : 0,
     }));
 
     res.json({ agendamentos: mappedAgendamentos });

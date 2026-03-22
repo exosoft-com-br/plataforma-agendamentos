@@ -1150,6 +1150,7 @@
                 <button class="btn btn-outline btn-sm" onclick="window.open('${linkAgendamento}','_blank')">🌐 Abrir</button>
                 <button class="btn btn-outline btn-sm" onclick="toggleEditarNegocio(${idx})">✏️ Editar</button>
                 <button class="btn btn-outline btn-sm" style="color:#25D366;border-color:#25D366" onclick="abrirWhatsappModal('${n.id}')">📱 WhatsApp</button>
+                <button class="btn btn-outline btn-sm" style="color:#667eea;border-color:#667eea" onclick="abrirUsuariosModal('${n.id}','${n.nomeFantasia}')">👥 Usuários</button>
                 ${deleteBtn}
               </div>
             </div>
@@ -1178,12 +1179,18 @@
           <div class="form-group"><label>Cidade</label><input type="text" id="e${idx}Cidade" value="${n.cidade || ''}"></div>
           <div class="form-group"><label>UF</label><input type="text" id="e${idx}Estado" value="${n.estado || ''}" maxlength="2" style="text-transform:uppercase"></div>
         </div>
-        <div class="form-group">
-          <label>Status do Negócio</label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px">
-            <input type="checkbox" id="e${idx}Ativo" ${n.ativo !== false ? 'checked' : ''} style="width:16px;height:16px">
-            Negócio ativo (aceita agendamentos)
-          </label>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Taxa por Agendamento (R$)</label>
+            <input type="number" id="e${idx}Taxa" value="${n.taxaAgendamento || 0}" min="0" step="0.01" placeholder="0,00">
+          </div>
+          <div class="form-group">
+            <label>Status do Negócio</label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px">
+              <input type="checkbox" id="e${idx}Ativo" ${n.ativo !== false ? 'checked' : ''} style="width:16px;height:16px">
+              Negócio ativo (aceita agendamentos)
+            </label>
+          </div>
         </div>
         <div class="btn-group">
           <button class="btn btn-success btn-sm" onclick="salvarEdicao(${idx})">💾 Salvar</button>
@@ -1205,6 +1212,7 @@
           cidade: document.getElementById(`e${idx}Cidade`).value.trim(),
           estado: document.getElementById(`e${idx}Estado`).value.trim().toUpperCase(),
           ativo: document.getElementById(`e${idx}Ativo`)?.checked ?? true,
+          taxaAgendamento: parseFloat(document.getElementById(`e${idx}Taxa`)?.value || '0') || 0,
         };
         const data = await apiFetch(`/negocios/${n.id}`, { method: 'PUT', body: JSON.stringify(body) });
         if (data.erro) { showAlert('error', data.erro); return; }
@@ -1931,5 +1939,99 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal Usuários do Negócio -->
+  <div id="usuariosModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:500px;width:90%;position:relative;max-height:85vh;overflow-y:auto">
+      <button onclick="fecharUsuariosModal()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:20px;cursor:pointer">✕</button>
+      <h3 style="margin:0 0 4px">👥 Usuários do Negócio</h3>
+      <p id="usuariosModalSubtitle" style="color:#666;font-size:13px;margin-bottom:18px"></p>
+
+      <!-- Form novo usuário -->
+      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-bottom:18px">
+        <strong style="font-size:14px">Criar acesso ao painel</strong>
+        <p style="font-size:12px;color:#666;margin:4px 0 12px">O usuário poderá consultar a agenda deste negócio em <strong>/painel.html</strong></p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div><label style="font-size:12px;color:#555">Nome</label><input type="text" id="uNome" placeholder="Nome do usuário" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+          <div><label style="font-size:12px;color:#555">Email</label><input type="email" id="uEmail" placeholder="email@exemplo.com" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+        </div>
+        <div style="margin-bottom:10px"><label style="font-size:12px;color:#555">Senha (mín. 6 caracteres)</label><input type="password" id="uSenha" placeholder="••••••" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+        <button onclick="criarUsuarioNegocio()" style="background:#667eea;color:#fff;border:none;padding:9px 18px;border-radius:6px;cursor:pointer;font-size:13px">+ Criar Usuário</button>
+      </div>
+
+      <!-- Lista usuários -->
+      <div id="usuariosList"><p style="color:#999;font-size:13px">Carregando...</p></div>
+    </div>
+  </div>
+
+  <script>
+    let _usuariosModalNegocioId = null;
+
+    async function abrirUsuariosModal(negocioId, nomeFantasia) {
+      _usuariosModalNegocioId = negocioId;
+      document.getElementById('usuariosModalSubtitle').textContent = nomeFantasia;
+      document.getElementById('usuariosModal').style.display = 'flex';
+      await carregarUsuariosNegocio();
+    }
+
+    function fecharUsuariosModal() {
+      document.getElementById('usuariosModal').style.display = 'none';
+      _usuariosModalNegocioId = null;
+    }
+
+    async function carregarUsuariosNegocio() {
+      const list = document.getElementById('usuariosList');
+      list.innerHTML = '<p style="color:#999;font-size:13px">Carregando...</p>';
+      try {
+        const data = await apiFetch(`/auth/usuarios/negocio/${_usuariosModalNegocioId}`);
+        const usuarios = data.usuarios || [];
+        if (!usuarios.length) {
+          list.innerHTML = '<p style="color:#999;font-size:13px">Nenhum usuário vinculado ainda.</p>';
+          return;
+        }
+        list.innerHTML = usuarios.map(u => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid #eee;border-radius:8px;margin-bottom:8px">
+            <div>
+              <div style="font-weight:600;font-size:14px">${u.nome}</div>
+              <div style="color:#666;font-size:12px">${u.email}</div>
+            </div>
+            <button onclick="removerUsuarioNegocio('${u.id}')" style="background:none;border:1px solid #e53e3e;color:#e53e3e;padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer">Remover</button>
+          </div>
+        `).join('');
+      } catch (e) {
+        list.innerHTML = '<p style="color:#e53e3e;font-size:13px">Erro ao carregar usuários.</p>';
+      }
+    }
+
+    async function criarUsuarioNegocio() {
+      const nome = document.getElementById('uNome').value.trim();
+      const email = document.getElementById('uEmail').value.trim();
+      const senha = document.getElementById('uSenha').value;
+      if (!nome || !email || !senha) { showAlert('error', 'Preencha todos os campos.'); return; }
+      if (senha.length < 6) { showAlert('error', 'Senha deve ter ao menos 6 caracteres.'); return; }
+      try {
+        const data = await apiFetch('/auth/usuarios', {
+          method: 'POST',
+          body: JSON.stringify({ nome, email, senha, negocioId: _usuariosModalNegocioId })
+        });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', 'Usuário criado com sucesso!');
+        document.getElementById('uNome').value = '';
+        document.getElementById('uEmail').value = '';
+        document.getElementById('uSenha').value = '';
+        await carregarUsuariosNegocio();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+
+    async function removerUsuarioNegocio(usuarioId) {
+      if (!confirm('Remover este usuário?')) return;
+      try {
+        const data = await apiFetch(`/auth/usuarios/${usuarioId}`, { method: 'DELETE' });
+        if (data.erro) { showAlert('error', data.erro); return; }
+        showAlert('success', 'Usuário removido.');
+        await carregarUsuariosNegocio();
+      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+    }
+  </script>
   </body>
   </html>

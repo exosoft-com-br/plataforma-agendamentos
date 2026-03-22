@@ -84,11 +84,13 @@ async function criarOuAtualizarUsuarioOAuth(
 
 function gerarResposta(user: any) {
   const ownerId = user.role === "admin" ? user.id : (user.owner_id || user.id);
+  const negocioId = user.negocio_id || undefined;
   const token = gerarToken({
     userId: user.id,
     email: user.email,
     role: user.role,
     ownerId,
+    negocioId,
   });
   return {
     sucesso: true,
@@ -99,6 +101,7 @@ function gerarResposta(user: any) {
       nome: user.nome,
       role: user.role,
       ownerId,
+      negocioId: negocioId || null,
       avatarUrl: user.avatar_url || null,
       provedor: user.provedor || "email",
     },
@@ -374,7 +377,7 @@ authRouter.get("/auth/me", autenticar, async (req: Request, res: Response) => {
   try {
     const { data: user } = await supabase
       .from("usuarios")
-      .select("id, email, nome, role, ativo, provedor, avatar_url, owner_id")
+      .select("id, email, nome, role, ativo, provedor, avatar_url, owner_id, negocio_id")
       .eq("id", req.auth!.userId)
       .single();
 
@@ -390,6 +393,7 @@ authRouter.get("/auth/me", autenticar, async (req: Request, res: Response) => {
         nome: user.nome,
         role: user.role,
         ownerId: user.role === "admin" ? user.id : (user.owner_id || user.id),
+        negocioId: user.negocio_id || null,
         avatarUrl: user.avatar_url,
         provedor: user.provedor,
       },
@@ -413,7 +417,7 @@ authRouter.get("/auth/usuarios", autenticar, apenasAdmin, async (req: Request, r
   try {
     const { data, error } = await supabase
       .from("usuarios")
-      .select("id, email, nome, role, ativo, criado_em, provedor, avatar_url")
+      .select("id, email, nome, role, ativo, criado_em, provedor, avatar_url, negocio_id")
       .or(`id.eq.${req.auth!.userId},owner_id.eq.${req.auth!.userId}`)
       .order("criado_em", { ascending: false });
 
@@ -430,13 +434,14 @@ authRouter.get("/auth/usuarios", autenticar, apenasAdmin, async (req: Request, r
 });
 
 // ============================================================
-// POST /api/auth/usuarios — Admin cria usuário vinculado
+// POST /api/auth/usuarios — Admin cria usuário vinculado (opcionalmente a um negócio)
 // ============================================================
 authRouter.post("/auth/usuarios", autenticar, apenasAdmin, async (req: Request, res: Response) => {
   try {
     const email = (req.body.email || "").trim().toLowerCase();
     const senha = req.body.senha || "";
     const nome = sanitizar(req.body.nome || "");
+    const negocioId = req.body.negocioId || null;
 
     if (!email || !senha || !nome) {
       res.status(400).json({ erro: "Email, senha e nome são obrigatórios." });
@@ -468,9 +473,10 @@ authRouter.post("/auth/usuarios", autenticar, apenasAdmin, async (req: Request, 
         nome,
         role: "usuario",
         owner_id: req.auth!.userId,
+        negocio_id: negocioId,
         provedor: "email",
       })
-      .select("id, email, nome, role, criado_em")
+      .select("id, email, nome, role, criado_em, negocio_id")
       .single();
 
     if (error) {
@@ -481,6 +487,59 @@ authRouter.post("/auth/usuarios", autenticar, apenasAdmin, async (req: Request, 
     res.status(201).json({ sucesso: true, usuario: data });
   } catch (erro) {
     console.error("Erro ao criar usuário:", erro);
+    res.status(500).json({ erro: "Erro interno." });
+  }
+});
+
+// ============================================================
+// GET /api/auth/usuarios/negocio/:negocioId — Lista usuários de um negócio
+// ============================================================
+authRouter.get("/auth/usuarios/negocio/:negocioId", autenticar, apenasAdmin, async (req: Request, res: Response) => {
+  try {
+    const negocioId = req.params.negocioId;
+    const { data, error } = await supabase
+      .from("usuarios")
+      .select("id, email, nome, role, ativo, criado_em, negocio_id")
+      .eq("negocio_id", negocioId)
+      .order("criado_em", { ascending: false });
+
+    if (error) {
+      res.status(500).json({ erro: "Erro ao listar usuários do negócio." });
+      return;
+    }
+
+    res.json({ usuarios: data || [] });
+  } catch (erro) {
+    console.error("Erro ao listar usuários do negócio:", erro);
+    res.status(500).json({ erro: "Erro interno." });
+  }
+});
+
+// ============================================================
+// DELETE /api/auth/usuarios/:id — Admin remove usuário
+// ============================================================
+authRouter.delete("/auth/usuarios/:id", autenticar, apenasAdmin, async (req: Request, res: Response) => {
+  try {
+    const usuarioId = req.params.id;
+    if (usuarioId === req.auth!.userId) {
+      res.status(400).json({ erro: "Não é possível remover sua própria conta." });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("usuarios")
+      .delete()
+      .eq("id", usuarioId)
+      .eq("owner_id", req.auth!.userId); // garante que só pode remover seus próprios usuários
+
+    if (error) {
+      res.status(500).json({ erro: "Erro ao remover usuário." });
+      return;
+    }
+
+    res.json({ sucesso: true });
+  } catch (erro) {
+    console.error("Erro ao remover usuário:", erro);
     res.status(500).json({ erro: "Erro interno." });
   }
 });
