@@ -62,11 +62,20 @@ export class EvolutionAPIProvider implements WhatsAppProvider {
   async sendMessage(para: string, texto: string): Promise<void> {
     const digits = para.replace(/\D/g, "");
     const number = digits.startsWith("55") ? digits : `55${digits}`;
-    await axios.post(
-      `${this.apiUrl}/message/sendText/${this.instanceName}`,
-      { number, text: texto },
-      { headers: { "Content-Type": "application/json", apikey: this.apiToken } }
-    );
+    console.log(`[evolution] Enviando para ${number} via instância ${this.instanceName}`);
+    try {
+      const resp = await axios.post(
+        `${this.apiUrl}/message/sendText/${this.instanceName}`,
+        { number, text: texto },
+        { headers: { "Content-Type": "application/json", apikey: this.apiToken } }
+      );
+      console.log(`[evolution] Resposta ${resp.status}:`, JSON.stringify(resp.data).slice(0, 200));
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const data = JSON.stringify(err?.response?.data ?? err?.message ?? err).slice(0, 300);
+      console.error(`[evolution] ERRO ao enviar para ${number} — HTTP ${status}: ${data}`);
+      throw err;
+    }
   }
 
   async criarInstancia(instanceName: string, webhookUrl: string): Promise<void> {

@@ -5,7 +5,9 @@ import { baileysManager } from "./baileysManager";
 
 async function enviar(telefone: string, texto: string, negocioId?: string, instancia?: string): Promise<void> {
   // 1. Tenta via Baileys (número do próprio negócio)
-  if (negocioId && baileysManager.getStatus(negocioId) === "conectado") {
+  const baileysStatus = negocioId ? baileysManager.getStatus(negocioId) : "desconectado";
+  if (negocioId && baileysStatus === "conectado") {
+    console.log(`[notificacao] Enviando via Baileys para ${telefone} (negocio: ${negocioId})`);
     await baileysManager.sendText(negocioId, telefone, texto);
     return;
   }
@@ -15,7 +17,13 @@ async function enviar(telefone: string, texto: string, negocioId?: string, insta
   const apiToken = process.env.WHATSAPP_API_TOKEN;
   const providerType = process.env.WHATSAPP_PROVIDER || "evolution";
   const instanceName = instancia || process.env.WHATSAPP_INSTANCE_NAME || "default";
-  if (!apiUrl || !apiToken) return;
+
+  console.log(`[notificacao] Baileys ${baileysStatus} para negocio ${negocioId ?? "N/A"} — tentando Evolution API (instância: ${instanceName}, url: ${apiUrl ?? "NÃO CONFIGURADO"})`);
+
+  if (!apiUrl || !apiToken) {
+    console.warn(`[notificacao] Evolution API não configurada — mensagem para ${telefone} não enviada`);
+    return;
+  }
 
   const provedor: WhatsAppProvider = criarProvedorWhatsApp(providerType, apiUrl, apiToken, instanceName);
   await provedor.sendMessage(telefone, texto);
