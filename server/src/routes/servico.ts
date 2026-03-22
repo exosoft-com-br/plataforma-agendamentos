@@ -1,6 +1,13 @@
 import { Router, Request, Response } from "express";
 import { supabase } from "../supabaseClient";
 import { sanitizar, sanitizarId } from "../utils/sanitizar";
+import { autenticar } from "../middleware/auth";
+
+/** Retorna os IDs de negócios pertencentes ao usuário autenticado. */
+async function negociosDoUsuario(userId: string): Promise<string[]> {
+  const { data } = await supabase.from("negocios").select("id").eq("owner_id", userId);
+  return (data || []).map((n: any) => n.id);
+}
 
 export const servicoRouter = Router();
 
@@ -61,9 +68,9 @@ servicoRouter.get("/prestadores", async (req: Request, res: Response) => {
  * POST /api/prestadores
  * Cria um novo prestador.
  */
-servicoRouter.post("/prestadores", async (req: Request, res: Response) => {
+servicoRouter.post("/prestadores", autenticar, async (req: Request, res: Response) => {
   try {
-    const nichoId = sanitizarId(req.body.nichoId);
+    let nichoId   = sanitizarId(req.body.nichoId);
     const negocioId = req.body.negocioId ? sanitizarId(req.body.negocioId) : null;
     const nome = sanitizar(req.body.nome || "");
     const categoria = sanitizar(req.body.categoria || "");
@@ -71,14 +78,24 @@ servicoRouter.post("/prestadores", async (req: Request, res: Response) => {
     const horarioFim = (req.body.horarioFim || "18:00").trim();
     const diasSemana = req.body.diasSemana || [1, 2, 3, 4, 5];
     const whatsappNumero = (req.body.whatsappNumero || "").replace(/\D/g, "") || null;
-
-    // Gerar id único
     const id = sanitizarId(req.body.id) || `prest-${Date.now()}`;
 
-    if (!nichoId || !nome) {
-      res.status(400).json({ erro: "Campos obrigatórios: nichoId, nome" });
-      return;
+    if (!nome) { res.status(400).json({ erro: "Nome é obrigatório." }); return; }
+
+    // Verifica ownership do negócio
+    if (negocioId) {
+      const ids = await negociosDoUsuario(req.auth!.userId);
+      if (!ids.includes(negocioId)) {
+        res.status(403).json({ erro: "Sem permissão para este negócio." }); return;
+      }
+      // Deriva nichoId do negócio se não informado
+      if (!nichoId) {
+        const { data: neg } = await supabase.from("negocios").select("nicho_id").eq("id", negocioId).single();
+        nichoId = neg?.nicho_id || "";
+      }
     }
+
+    if (!nichoId) { res.status(400).json({ erro: "nichoId ou negocioId são obrigatórios." }); return; }
 
     // Validar formato de horário
     const horaRegex = /^\d{2}:\d{2}$/;
@@ -139,12 +156,18 @@ servicoRouter.post("/prestadores", async (req: Request, res: Response) => {
  * PUT /api/prestadores/:prestadorId
  * Atualiza um prestador.
  */
-servicoRouter.put("/prestadores/:prestadorId", async (req: Request, res: Response) => {
+servicoRouter.put("/prestadores/:prestadorId", autenticar, async (req: Request, res: Response) => {
   try {
     const prestadorId = sanitizarId(req.params.prestadorId);
-    if (!prestadorId) {
-      res.status(400).json({ erro: "prestadorId inválido." });
-      return;
+    if (!prestadorId) { res.status(400).json({ erro: "prestadorId inválido." }); return; }
+
+    // Verifica ownership
+    const ids = await negociosDoUsuario(req.auth!.userId);
+    if (ids.length) {
+      const { data: prest } = await supabase.from("prestadores").select("negocio_id").eq("id", prestadorId).single();
+      if (prest?.negocio_id && !ids.includes(prest.negocio_id)) {
+        res.status(403).json({ erro: "Sem permissão para editar este prestador." }); return;
+      }
     }
 
     const updates: Record<string, any> = {};
@@ -189,12 +212,18 @@ servicoRouter.put("/prestadores/:prestadorId", async (req: Request, res: Respons
  * DELETE /api/prestadores/:prestadorId
  * Exclui um prestador (cascata: serviços vinculados).
  */
-servicoRouter.delete("/prestadores/:prestadorId", async (req: Request, res: Response) => {
+servicoRouter.delete("/prestadores/:prestadorId", autenticar, async (req: Request, res: Response) => {
   try {
     const prestadorId = sanitizarId(req.params.prestadorId);
-    if (!prestadorId) {
-      res.status(400).json({ erro: "prestadorId inválido." });
-      return;
+    if (!prestadorId) { res.status(400).json({ erro: "prestadorId inválido." }); return; }
+
+    // Verifica ownership
+    const ids = await negociosDoUsuario(req.auth!.userId);
+    if (ids.length) {
+      const { data: prest } = await supabase.from("prestadores").select("negocio_id").eq("id", prestadorId).single();
+      if (prest?.negocio_id && !ids.includes(prest.negocio_id)) {
+        res.status(403).json({ erro: "Sem permissão para excluir este prestador." }); return;
+      }
     }
 
     // Excluir agendamentos vinculados ao prestador
@@ -240,21 +269,27 @@ servicoRouter.delete("/prestadores/:prestadorId", async (req: Request, res: Resp
  */
 servicoRouter.get("/servicos", async (req: Request, res: Response) => {
   try {
-    const idsParam = req.query.ids as string;
-    const nichoId = sanitizarId((req.query.nichoId as string) || "");
+    const idsParam    = req.query.ids as string;
+    const nichoId     = sanitizarId((req.query.nichoId   as string) || "");
+    const negocioId   = sanitizarId((req.query.negocioId as string) || "");
+    const prestadorId = sanitizarId((req.query.prestadorId as string) || "");
     let query = supabase.from("servicos").select("*, prestadores(nome)");
     if (idsParam) {
-      // Buscar por múltiplos IDs
       const ids = idsParam.split(',').map((id) => id.trim()).filter(Boolean);
-      if (ids.length === 0) {
-        res.status(400).json({ erro: "Parâmetro ids inválido." });
-        return;
-      }
+      if (ids.length === 0) { res.status(400).json({ erro: "Parâmetro ids inválido." }); return; }
       query = query.in('id', ids);
+    } else if (prestadorId) {
+      query = query.eq("prestador_id", prestadorId);
+    } else if (negocioId) {
+      // Busca prestador IDs do negócio e filtra serviços
+      const { data: prests } = await supabase.from("prestadores").select("id").eq("negocio_id", negocioId);
+      const pids = (prests || []).map((p: any) => p.id);
+      if (!pids.length) { res.json({ servicos: [] }); return; }
+      query = query.in("prestador_id", pids);
     } else if (nichoId) {
       query = query.eq("nicho_id", nichoId);
     } else {
-      res.status(400).json({ erro: "Parâmetro obrigatório: nichoId ou ids" });
+      res.status(400).json({ erro: "Parâmetro obrigatório: negocioId, nichoId, prestadorId ou ids" });
       return;
     }
     query = query.order("criado_em", { ascending: false });
@@ -287,17 +322,17 @@ servicoRouter.get("/servicos", async (req: Request, res: Response) => {
  * POST /api/servicos
  * Cria um novo serviço.
  */
-servicoRouter.post("/servicos", async (req: Request, res: Response) => {
+servicoRouter.post("/servicos", autenticar, async (req: Request, res: Response) => {
   try {
-    const nichoId = sanitizarId(req.body.nichoId);
+    let nichoId = sanitizarId(req.body.nichoId);
     const prestadorId = sanitizarId(req.body.prestadorId);
     const id = sanitizarId(req.body.id) || `srv-${Date.now()}`;
     const nome = sanitizar(req.body.nome || "");
     const duracaoMinutos = parseInt(req.body.duracaoMinutos) || 30;
     const preco = req.body.preco ? parseFloat(req.body.preco) : null;
 
-    if (!nichoId || !prestadorId || !nome) {
-      res.status(400).json({ erro: "Campos obrigatórios: nichoId, prestadorId, nome" });
+    if (!prestadorId || !nome) {
+      res.status(400).json({ erro: "Campos obrigatórios: prestadorId, nome" });
       return;
     }
 
@@ -306,16 +341,21 @@ servicoRouter.post("/servicos", async (req: Request, res: Response) => {
       return;
     }
 
-    // Verificar se o prestador existe
+    // Verificar se o prestador existe + derivar nichoId + verificar ownership
     const { data: prest } = await supabase
       .from("prestadores")
-      .select("id")
+      .select("id, nicho_id, negocio_id")
       .eq("id", prestadorId)
       .single();
 
-    if (!prest) {
-      res.status(404).json({ erro: "Prestador não encontrado." });
-      return;
+    if (!prest) { res.status(404).json({ erro: "Prestador não encontrado." }); return; }
+
+    if (!nichoId) nichoId = prest.nicho_id || "";
+
+    // Ownership: verifica se o prestador pertence a um negócio do usuário
+    const ids = await negociosDoUsuario(req.auth!.userId);
+    if (ids.length && prest.negocio_id && !ids.includes(prest.negocio_id)) {
+      res.status(403).json({ erro: "Sem permissão para este prestador." }); return;
     }
 
     const { data, error } = await supabase
@@ -364,12 +404,19 @@ servicoRouter.post("/servicos", async (req: Request, res: Response) => {
  * PUT /api/servicos/:servicoId
  * Atualiza um serviço.
  */
-servicoRouter.put("/servicos/:servicoId", async (req: Request, res: Response) => {
+servicoRouter.put("/servicos/:servicoId", autenticar, async (req: Request, res: Response) => {
   try {
     const servicoId = sanitizarId(req.params.servicoId);
-    if (!servicoId) {
-      res.status(400).json({ erro: "servicoId inválido." });
-      return;
+    if (!servicoId) { res.status(400).json({ erro: "servicoId inválido." }); return; }
+
+    // Ownership via prestador do serviço
+    const ids = await negociosDoUsuario(req.auth!.userId);
+    if (ids.length) {
+      const { data: svc } = await supabase.from("servicos").select("prestadores(negocio_id)").eq("id", servicoId).single();
+      const negId = (svc?.prestadores as any)?.negocio_id;
+      if (negId && !ids.includes(negId)) {
+        res.status(403).json({ erro: "Sem permissão para editar este serviço." }); return;
+      }
     }
 
     const updates: Record<string, any> = {};
@@ -421,12 +468,19 @@ servicoRouter.put("/servicos/:servicoId", async (req: Request, res: Response) =>
  * DELETE /api/servicos/:servicoId
  * Exclui um serviço.
  */
-servicoRouter.delete("/servicos/:servicoId", async (req: Request, res: Response) => {
+servicoRouter.delete("/servicos/:servicoId", autenticar, async (req: Request, res: Response) => {
   try {
     const servicoId = sanitizarId(req.params.servicoId);
-    if (!servicoId) {
-      res.status(400).json({ erro: "servicoId inválido." });
-      return;
+    if (!servicoId) { res.status(400).json({ erro: "servicoId inválido." }); return; }
+
+    // Ownership via prestador do serviço
+    const ids = await negociosDoUsuario(req.auth!.userId);
+    if (ids.length) {
+      const { data: svc } = await supabase.from("servicos").select("prestadores(negocio_id)").eq("id", servicoId).single();
+      const negId = (svc?.prestadores as any)?.negocio_id;
+      if (negId && !ids.includes(negId)) {
+        res.status(403).json({ erro: "Sem permissão para excluir este serviço." }); return;
+      }
     }
 
     // Excluir agendamentos vinculados primeiro

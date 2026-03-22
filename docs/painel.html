@@ -874,13 +874,13 @@
 
   // ── Serviços ─────────────────────────────────────────────────
   async function carregarServicos() {
-    if (!NEGOCIO_NICHO) return;
     document.getElementById('loadingServicos').style.display = 'block';
     document.getElementById('tabelaServicos').style.display  = 'none';
     document.getElementById('msgVazioServicos').style.display= 'none';
     const filtro = document.getElementById('sFiltroPrestador').value;
-    const params = new URLSearchParams({ nichoId: NEGOCIO_NICHO });
-    if (filtro) params.set('prestadorId', filtro);
+    const params = filtro
+      ? new URLSearchParams({ prestadorId: filtro })
+      : new URLSearchParams({ negocioId: NEGOCIO_ID });
     try {
       const data = await apiFetch(`/servicos?${params}`);
       const lista = data.servicos || [];
@@ -943,7 +943,7 @@
     const preco       = parseFloat(document.getElementById('sPreco').value) || null;
     if (!prestadorId) { showAlert('error', 'Selecione o prestador.'); return; }
     if (!nome)        { showAlert('error', 'Nome é obrigatório.'); return; }
-    const body = { nichoId: NEGOCIO_NICHO, prestadorId, nome, duracaoMinutos: duracao, preco };
+    const body = { prestadorId, nome, duracaoMinutos: duracao, preco };
     try {
       if (id) await apiFetch(`/servicos/${id}`, { method:'PUT', body:JSON.stringify(body) });
       else     await apiFetch('/servicos',        { method:'POST', body:JSON.stringify(body) });
