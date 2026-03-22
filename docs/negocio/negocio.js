@@ -1,4 +1,4 @@
-const API_URL = 'https://plataforma-agendamentos-api.onrender.com';
+const API_URL = 'https://agendei-io-api.onrender.com';
 
 const CURRENT_USER = JSON.parse(localStorage.getItem('currentUser') || 'null');
 const AUTH_TOKEN = localStorage.getItem('authToken') || '';
