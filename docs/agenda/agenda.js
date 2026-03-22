@@ -1,4 +1,4 @@
-const API_URL = 'https://agendei-io-api.onrender.com';
+const API_URL = 'https://plataforma-agendamentos-api.onrender.com';
 
 async function apiFetch(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json', ...opts.headers };
