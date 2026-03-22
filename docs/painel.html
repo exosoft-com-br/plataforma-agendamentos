@@ -211,6 +211,32 @@
     .alert-success { background: #e6f9ee; color: #27ae60; border: 1px solid #b8e8cc; }
     .alert-error   { background: #fde8e8; color: #e53e3e; border: 1px solid #f8c0c0; }
 
+    /* ── WhatsApp status no header ── */
+    .wa-status-btn {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.3);
+      padding: 6px 12px; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600;
+      white-space: nowrap; transition: background .15s;
+    }
+    .wa-status-btn:hover { background: rgba(255,255,255,.25); }
+    .wa-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .wa-dot.conectado  { background: #4ade80; }
+    .wa-dot.desconectado { background: #aaa; }
+    .wa-dot.conectando  { background: #fbbf24; }
+
+    /* ── Modal WhatsApp ── */
+    #modalWa .modal-box { width: 420px; }
+    #waQrContainer { text-align: center; margin: 12px 0; }
+    #waQrImg { max-width: 240px; border-radius: 10px; }
+    #waStatusBadge { display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+    .badge-conectado    { background: #e6f9ee; color: #27ae60; }
+    .badge-desconectado { background: #f0f0f0; color: #888; }
+    .badge-conectando   { background: #fef3c7; color: #d97706; }
+    #waTelefoneTeste { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; }
+
+    /* ── Modal editar agendamento ── */
+    #modalEditAg .modal-box { width: 480px; }
+
     @media(max-width:600px) {
       th:nth-child(3), td:nth-child(3) { display: none; }
       .tabs { padding: 0 8px; }
@@ -241,6 +267,10 @@
     <h2>📅 <span id="headerNome">Painel do Negócio</span></h2>
     <div class="user-info">
       <span id="headerUser"></span>
+      <button class="wa-status-btn" id="waHeaderBtn" onclick="abrirModalWa()">
+        <span class="wa-dot desconectado" id="waDot"></span>
+        <span id="waHeaderTxt">WhatsApp</span>
+      </button>
       <button class="btn-sair" onclick="sair()">Sair</button>
     </div>
   </header>
@@ -286,7 +316,7 @@
           <thead>
             <tr>
               <th>Protocolo</th><th>Cliente</th><th>Profissional</th>
-              <th>Serviço</th><th>Data / Hora</th><th>Taxa</th><th>Status</th><th>WhatsApp</th>
+              <th>Serviço</th><th>Data / Hora</th><th>Taxa</th><th>Status</th><th>WhatsApp</th><th></th>
             </tr>
           </thead>
           <tbody id="tbodyAgendamentos"></tbody>
@@ -475,6 +505,73 @@
   </div>
 </div>
 
+<!-- ── Modal WhatsApp ── -->
+<div id="modalWa" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3>📱 WhatsApp do Negócio</h3>
+    <div style="text-align:center;margin-bottom:14px">
+      <span id="waStatusBadge" class="badge-desconectado">Desconectado</span>
+    </div>
+
+    <div id="waQrContainer" style="display:none">
+      <p style="font-size:13px;color:#666;margin-bottom:8px">Escaneie o QR Code com seu WhatsApp:</p>
+      <img id="waQrImg" src="" alt="QR Code">
+      <p style="font-size:12px;color:#888;margin-top:8px">Aguardando leitura...</p>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:center;margin-bottom:18px">
+      <button id="waBtnConectar" class="btn-salvar" onclick="conectarWa()" style="display:none">Conectar WhatsApp</button>
+      <button id="waBtnDesconectar" class="btn-cancelar" onclick="desconectarWa()" style="display:none">Desconectar</button>
+    </div>
+
+    <div id="waTeste" style="display:none;border-top:1px solid #f0f0f0;padding-top:14px">
+      <p style="font-size:13px;font-weight:600;color:#333;margin-bottom:8px">Enviar mensagem de teste:</p>
+      <div style="display:flex;gap:8px">
+        <input type="tel" id="waTelefoneTeste" placeholder="Ex: 11999998888">
+        <button class="btn-salvar" onclick="enviarTeste()" style="white-space:nowrap">Enviar</button>
+      </div>
+    </div>
+
+    <div class="form-actions" style="margin-top:18px;justify-content:flex-end">
+      <button class="btn-cancelar-form" onclick="fecharModalWa()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal Editar Agendamento ── -->
+<div id="modalEditAg" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3>✏️ Editar Agendamento</h3>
+    <input type="hidden" id="editAgId">
+    <div class="form-group" style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:600;color:#666">Profissional</label>
+      <select id="editAgPrestador" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px" onchange="carregarServicosEdit()"></select>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:600;color:#666">Serviço</label>
+      <select id="editAgServico" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px"></select>
+    </div>
+    <div class="form-row" style="margin-bottom:12px">
+      <div class="form-group">
+        <label style="font-size:12px;font-weight:600;color:#666">Data e hora</label>
+        <input type="datetime-local" id="editAgDataHora" style="padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:100%">
+      </div>
+      <div class="form-group">
+        <label style="font-size:12px;font-weight:600;color:#666">Status</label>
+        <select id="editAgStatus" style="padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:100%">
+          <option value="confirmado">Confirmado</option>
+          <option value="cancelado">Cancelado</option>
+          <option value="concluido">Concluído</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions" style="margin-top:18px">
+      <button class="btn-salvar" onclick="salvarEdicaoAgendamento()">💾 Salvar</button>
+      <button class="btn-cancelar-form" onclick="fecharModalEditAg()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal de disponibilidade -->
 <div id="modalDisponibilidade" class="modal-overlay" style="display:none">
   <div class="modal-box">
@@ -631,6 +728,16 @@
         _negocioWaStatus = d.status || 'desconectado';
       }
     } catch { _negocioWaStatus = 'desconectado'; }
+    atualizarBotaoWaHeader();
+  }
+
+  function atualizarBotaoWaHeader() {
+    const dot = document.getElementById('waDot');
+    const txt = document.getElementById('waHeaderTxt');
+    if (!dot || !txt) return;
+    dot.className = `wa-dot ${_negocioWaStatus}`;
+    const labels = { conectado: 'WhatsApp ✓', conectando: 'WhatsApp...', desconectado: 'WhatsApp' };
+    txt.textContent = labels[_negocioWaStatus] || 'WhatsApp';
   }
 
   function aplicarPermissoes(usuario) {
@@ -664,6 +771,8 @@
     buscarWaStatus();
     carregarAgendamentos();
     carregarPendentes();
+    // Pré-carrega prestadores para o modal de edição de agendamento
+    apiFetch(`/prestadores?negocioId=${NEGOCIO_ID}`).then(d => { _prestadoresCache = d.prestadores || []; }).catch(() => {});
   }
 
   function sair() {
@@ -713,6 +822,7 @@
         <td>${taxa}</td>
         <td><span class="status-badge status-${ag.status}">${ag.status}</span></td>
         <td>${waBadge}</td>
+        <td><button class="btn-sm btn-edit" onclick='abrirEditarAgendamento(${JSON.stringify(ag)})'>Editar</button></td>
       </tr>`;
     }).join('');
     atualizarMetricas(ags);
@@ -1158,6 +1268,152 @@
       delete _agendaDiasCache[iso];
       renderizarAgenda(_agendaPrestadorAtual, _agendaDiasCache);
       showAlert('success', 'Personalização removida.');
+    } catch(e) { showAlert('error', e.message); }
+  }
+
+  // ── WhatsApp Modal ────────────────────────────────────────────
+  let _waPollInterval = null;
+
+  function abrirModalWa() {
+    document.getElementById('modalWa').style.display = 'flex';
+    atualizarModalWa();
+  }
+
+  function fecharModalWa() {
+    document.getElementById('modalWa').style.display = 'none';
+    pararPollWa();
+  }
+
+  async function atualizarModalWa() {
+    if (!NEGOCIO_ID) return;
+    try {
+      const res = await fetch(`${API}/negocio/${NEGOCIO_ID}/whatsapp/status`, {
+        headers: { Authorization: `Bearer ${AUTH_TOKEN}` }
+      });
+      const d = await res.json();
+      _negocioWaStatus = d.status || 'desconectado';
+      atualizarBotaoWaHeader();
+
+      const badge    = document.getElementById('waStatusBadge');
+      const qrBox    = document.getElementById('waQrContainer');
+      const qrImg    = document.getElementById('waQrImg');
+      const btnCon   = document.getElementById('waBtnConectar');
+      const btnDes   = document.getElementById('waBtnDesconectar');
+      const testeSec = document.getElementById('waTeste');
+
+      badge.className = `badge-${_negocioWaStatus}`;
+      badge.textContent = { conectado:'Conectado', conectando:'Conectando...', desconectado:'Desconectado' }[_negocioWaStatus] || _negocioWaStatus;
+
+      if (_negocioWaStatus === 'conectando' && d.qrcode) {
+        qrImg.src = d.qrcode;
+        qrBox.style.display = 'block';
+        btnCon.style.display = 'none';
+        btnDes.style.display = 'none';
+        testeSec.style.display = 'none';
+        iniciarPollWa();
+      } else if (_negocioWaStatus === 'conectado') {
+        qrBox.style.display = 'none';
+        btnCon.style.display = 'none';
+        btnDes.style.display = 'inline-block';
+        testeSec.style.display = 'block';
+        pararPollWa();
+      } else {
+        qrBox.style.display = 'none';
+        btnCon.style.display = 'inline-block';
+        btnDes.style.display = 'none';
+        testeSec.style.display = 'none';
+        pararPollWa();
+      }
+    } catch { /* silencioso */ }
+  }
+
+  function iniciarPollWa() {
+    if (_waPollInterval) return;
+    _waPollInterval = setInterval(atualizarModalWa, 2000);
+  }
+
+  function pararPollWa() {
+    if (_waPollInterval) { clearInterval(_waPollInterval); _waPollInterval = null; }
+  }
+
+  async function conectarWa() {
+    try {
+      await apiFetch(`/negocio/${NEGOCIO_ID}/whatsapp/conectar`, { method: 'POST' });
+      atualizarModalWa();
+      iniciarPollWa();
+    } catch(e) { showAlert('error', 'Erro ao conectar: ' + e.message); }
+  }
+
+  async function desconectarWa() {
+    if (!confirm('Desconectar WhatsApp?')) return;
+    try {
+      await apiFetch(`/negocio/${NEGOCIO_ID}/whatsapp/desconectar`, { method: 'DELETE' });
+      _negocioWaStatus = 'desconectado';
+      atualizarBotaoWaHeader();
+      atualizarModalWa();
+    } catch(e) { showAlert('error', 'Erro ao desconectar: ' + e.message); }
+  }
+
+  async function enviarTeste() {
+    const tel = document.getElementById('waTelefoneTeste').value.trim();
+    if (!tel) { showAlert('error', 'Informe um telefone.'); return; }
+    try {
+      await apiFetch(`/negocio/${NEGOCIO_ID}/whatsapp/teste`, { method:'POST', body: JSON.stringify({ telefone: tel }) });
+      showAlert('success', 'Mensagem de teste enviada!');
+    } catch(e) { showAlert('error', e.message); }
+  }
+
+  // ── Editar Agendamento ────────────────────────────────────────
+  let _editAgServicosCache = {};
+
+  async function abrirEditarAgendamento(ag) {
+    document.getElementById('editAgId').value = ag.id;
+
+    // Popular prestadores
+    const sel = document.getElementById('editAgPrestador');
+    sel.innerHTML = _prestadoresCache.map(p => `<option value="${p.id}" ${p.id === ag.prestador_id ? 'selected' : ''}>${p.nome}</option>`).join('');
+
+    // Converter data para datetime-local (fuso SP)
+    const dt = new Date(ag.data_hora);
+    const local = new Date(dt.getTime() - 3 * 60 * 60 * 1000);
+    document.getElementById('editAgDataHora').value = local.toISOString().slice(0, 16);
+    document.getElementById('editAgStatus').value   = ag.status;
+
+    await carregarServicosEdit(ag.servico_id);
+    document.getElementById('modalEditAg').style.display = 'flex';
+  }
+
+  async function carregarServicosEdit(servicoAtualId) {
+    const prestadorId = document.getElementById('editAgPrestador').value;
+    if (!prestadorId) return;
+    try {
+      const data = await apiFetch(`/servicos?prestadorId=${prestadorId}`);
+      const servicos = data.servicos || [];
+      const sel = document.getElementById('editAgServico');
+      sel.innerHTML = servicos.map(s => `<option value="${s.id}" ${s.id === servicoAtualId ? 'selected' : ''}>${s.nome}</option>`).join('');
+    } catch { /* silencioso */ }
+  }
+
+  function fecharModalEditAg() {
+    document.getElementById('modalEditAg').style.display = 'none';
+  }
+
+  async function salvarEdicaoAgendamento() {
+    const id         = document.getElementById('editAgId').value;
+    const prestadorId= document.getElementById('editAgPrestador').value;
+    const servicoId  = document.getElementById('editAgServico').value;
+    const dataHoraLocal = document.getElementById('editAgDataHora').value;
+    const status     = document.getElementById('editAgStatus').value;
+    if (!dataHoraLocal) { showAlert('error', 'Informe data e hora.'); return; }
+
+    // Converter de local (SP) para UTC
+    const dataHora = new Date(new Date(dataHoraLocal).getTime() + 3 * 60 * 60 * 1000).toISOString();
+
+    try {
+      await apiFetch(`/booking/${id}`, { method:'PUT', body: JSON.stringify({ prestadorId, servicoId, dataHora, status }) });
+      showAlert('success', 'Agendamento atualizado!');
+      fecharModalEditAg();
+      carregarAgendamentos();
     } catch(e) { showAlert('error', e.message); }
   }
 

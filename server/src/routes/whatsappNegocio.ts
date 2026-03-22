@@ -67,6 +67,38 @@ whatsappNegocioRouter.delete(
 );
 
 /**
+ * POST /api/negocio/:id/whatsapp/teste
+ * Envia mensagem de teste para um número informado.
+ */
+whatsappNegocioRouter.post(
+  "/negocio/:id/whatsapp/teste",
+  autenticar,
+  async (req: Request, res: Response) => {
+    const negocioId = sanitizarId(req.params.id);
+    if (!negocioId) { res.status(400).json({ erro: "negocioId inválido." }); return; }
+
+    const telefone = (req.body.telefone || "").replace(/\D/g, "");
+    if (!telefone || telefone.length < 10) {
+      res.status(400).json({ erro: "Informe um telefone válido com DDD." });
+      return;
+    }
+
+    const status = baileysManager.getStatus(negocioId);
+    if (status !== "conectado") {
+      res.status(400).json({ erro: "WhatsApp não está conectado para este negócio." });
+      return;
+    }
+
+    try {
+      await baileysManager.sendText(negocioId, telefone, "✅ Teste de conexão — seu WhatsApp está integrado ao Agendei.io!");
+      res.json({ sucesso: true });
+    } catch (e: any) {
+      res.status(500).json({ erro: "Erro ao enviar mensagem: " + e.message });
+    }
+  }
+);
+
+/**
  * POST /api/whatsapp/webhook — mantido para compatibilidade, não usado com Baileys
  */
 whatsappNegocioRouter.post("/whatsapp/webhook", async (_req: Request, res: Response) => {
