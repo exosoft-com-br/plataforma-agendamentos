@@ -688,21 +688,13 @@
     <div class="card">
       <h2>👥 Gerenciar Usuários</h2>
       <p style="color:var(--text-light);font-size:.9rem;margin-bottom:16px">
-        Crie contas de <strong>usuário</strong> para colaboradores. Eles poderão <em>editar</em> negócios mas <strong>não</strong> criar ou excluir.
+        Crie e gerencie contas de acesso para colaboradores vinculados aos seus negócios.
       </p>
-      <div id="usuariosList"></div>
-      <div class="btn-group">
-        <button class="btn btn-primary" onclick="toggleNovoUsuario()">+ Novo Usuário</button>
+      <div class="btn-group" style="margin-bottom:16px">
+        <button class="btn btn-primary" onclick="abrirModalNovoUsuario()">+ Novo Usuário</button>
       </div>
-    </div>
-    <div class="card" id="formNovoUsuario" style="display:none">
-      <h2>Criar Usuário</h2>
-      <div class="form-group"><label>Nome *</label><input type="text" id="uNome" placeholder="Nome do colaborador"></div>
-      <div class="form-group"><label>Email *</label><input type="email" id="uEmail" placeholder="email@exemplo.com"></div>
-      <div class="form-group"><label>Senha * (min. 6)</label><input type="password" id="uSenha" placeholder="Senha inicial"></div>
-      <div class="btn-group">
-        <button class="btn btn-success" onclick="criarUsuario()">✅ Criar Usuário</button>
-        <button class="btn btn-outline" onclick="toggleNovoUsuario()">Cancelar</button>
+      <div id="tabUsuariosList">
+        <div class="empty"><div class="empty-icon">👥</div><p>Carregando usuários...</p></div>
       </div>
     </div>
   </div>
@@ -1891,48 +1883,147 @@
     }
 
     // ========================================================================
-    // USUÁRIOS (admin only)
+    // USUÁRIOS — aba principal (admin only)
     // ========================================================================
-    function toggleNovoUsuario() {
-      const f = document.getElementById('formNovoUsuario');
-      f.style.display = f.style.display === 'none' ? 'block' : 'none';
+    let _tabUsuariosCache = [];
+
+    function _permBadges(u) {
+      const b = [];
+      if (u.perm_prestadores) b.push('<span style="background:#eef2ff;color:#4338ca;padding:2px 7px;border-radius:10px;font-size:.75rem;font-weight:600">Prestadores</span>');
+      if (u.perm_servicos)    b.push('<span style="background:#eef2ff;color:#4338ca;padding:2px 7px;border-radius:10px;font-size:.75rem;font-weight:600">Serviços</span>');
+      if (u.perm_agenda)      b.push('<span style="background:#eef2ff;color:#4338ca;padding:2px 7px;border-radius:10px;font-size:.75rem;font-weight:600">Agenda</span>');
+      if (u.whatsapp_ativo)   b.push('<span style="background:#e6f9ee;color:#276749;padding:2px 7px;border-radius:10px;font-size:.75rem;font-weight:600">WhatsApp</span>');
+      return b.length ? b.join(' ') : '<span style="color:var(--text-light);font-size:.8rem">—</span>';
     }
 
     async function carregarUsuarios() {
+      const el = document.getElementById('tabUsuariosList');
+      el.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div>';
       try {
         const data = await apiFetch('/auth/usuarios');
-        const el = document.getElementById('usuariosList');
-        const list = data.usuarios || [];
-        if (!list.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><p>Nenhum usuário.</p></div>'; return; }
-        el.innerHTML = list.map(u => `
-          <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <strong>${u.nome}</strong>
-              <div style="font-size:.85rem;color:var(--text-light)">${u.email}</div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <span class="badge ${u.role==='admin'?'badge-admin':'badge-user'}">${u.role.toUpperCase()}</span>
-              <span class="badge ${u.ativo?'badge-active':'badge-error'}">${u.ativo?'Ativo':'Inativo'}</span>
-            </div>
-          </div>
-        `).join('');
-      } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+        _tabUsuariosCache = data.usuarios || [];
+        if (!_tabUsuariosCache.length) {
+          el.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><p>Nenhum usuário cadastrado ainda.</p></div>';
+          return;
+        }
+        const rows = _tabUsuariosCache.map(u => {
+          const negocioNome = (negociosCache.find(n => n.id === u.negocio_id) || {}).nomeFantasia || (u.negocio_id ? u.negocio_id : '<span style="color:var(--text-light)">—</span>');
+          return `<tr>
+            <td><strong>${u.nome}</strong></td>
+            <td style="font-size:.85rem">${u.email}</td>
+            <td style="font-size:.85rem">${negocioNome}</td>
+            <td style="white-space:nowrap">${_permBadges(u)}</td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-outline btn-sm" onclick="abrirModalEditarUsuarioTab('${u.id}')">✏️ Editar</button>
+              <button class="btn btn-danger btn-sm" onclick="excluirUsuarioTab('${u.id}','${u.nome.replace(/'/g,"\\'")}')">🗑</button>
+            </td>
+          </tr>`;
+        }).join('');
+        el.innerHTML = `
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Nome</th><th>Email</th><th>Negócio</th><th>Permissões / WhatsApp</th><th>Ações</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
+      } catch (e) { el.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><p>Erro ao carregar usuários.</p></div>'; showAlert('error', 'Erro: ' + e.message); }
     }
 
-    async function criarUsuario() {
+    function abrirModalNovoUsuario() {
+      // Popula o select de negócios
+      const sel = document.getElementById('tuNegocioId');
+      sel.innerHTML = '<option value="">Nenhum (sem negócio)</option>' +
+        negociosCache.map(n => `<option value="${n.id}">${n.nomeFantasia} (${n.nichoId})</option>`).join('');
+      // Limpa campos
+      ['tuNome','tuEmail','tuSenha'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('tuWhatsappAtivo').checked = true;
+      document.getElementById('tuPermPrestadores').checked = false;
+      document.getElementById('tuPermServicos').checked = false;
+      document.getElementById('tuPermAgenda').checked = false;
+      document.getElementById('tuModalTitle').textContent = 'Novo Usuário';
+      document.getElementById('tuSenhaLabel').textContent = 'Senha *';
+      document.getElementById('tuSenhaLabel').innerHTML = 'Senha * <small style="color:var(--text-light)">(mín. 8 caracteres)</small>';
+      document.getElementById('tuSenhaOpcional').style.display = 'none';
+      document.getElementById('tuId').value = '';
+      document.getElementById('tabUsuarioModal').style.display = 'flex';
+    }
+
+    function abrirModalEditarUsuarioTab(id) {
+      const u = _tabUsuariosCache.find(x => x.id == id);
+      if (!u) return;
+      const sel = document.getElementById('tuNegocioId');
+      sel.innerHTML = '<option value="">Nenhum (sem negócio)</option>' +
+        negociosCache.map(n => `<option value="${n.id}">${n.nomeFantasia} (${n.nichoId})</option>`).join('');
+      document.getElementById('tuId').value = u.id;
+      document.getElementById('tuNome').value = u.nome || '';
+      document.getElementById('tuEmail').value = u.email || '';
+      document.getElementById('tuSenha').value = '';
+      document.getElementById('tuNegocioId').value = u.negocio_id || '';
+      document.getElementById('tuWhatsappAtivo').checked = !!u.whatsapp_ativo;
+      document.getElementById('tuPermPrestadores').checked = !!u.perm_prestadores;
+      document.getElementById('tuPermServicos').checked = !!u.perm_servicos;
+      document.getElementById('tuPermAgenda').checked = !!u.perm_agenda;
+      document.getElementById('tuModalTitle').textContent = 'Editar Usuário';
+      document.getElementById('tuSenhaLabel').innerHTML = 'Nova senha <small style="color:var(--text-light)">(opcional)</small>';
+      document.getElementById('tuSenhaOpcional').style.display = 'block';
+      document.getElementById('tabUsuarioModal').style.display = 'flex';
+    }
+
+    function fecharTabUsuarioModal() {
+      document.getElementById('tabUsuarioModal').style.display = 'none';
+    }
+
+    async function salvarTabUsuario() {
+      const id = document.getElementById('tuId').value;
+      const nome = document.getElementById('tuNome').value.trim();
+      const email = document.getElementById('tuEmail').value.trim();
+      const senha = document.getElementById('tuSenha').value;
+      const negocioId = document.getElementById('tuNegocioId').value || null;
+      const whatsappAtivo = document.getElementById('tuWhatsappAtivo').checked;
+      const permPrestadores = document.getElementById('tuPermPrestadores').checked;
+      const permServicos = document.getElementById('tuPermServicos').checked;
+      const permAgenda = document.getElementById('tuPermAgenda').checked;
+
+      if (!nome || !email) { showAlert('error', 'Nome e email são obrigatórios.'); return; }
+
+      if (!id) {
+        // Criação
+        if (!senha) { showAlert('error', 'Senha é obrigatória.'); return; }
+        if (senha.length < 8) { showAlert('error', 'Senha mínima: 8 caracteres.'); return; }
+        try {
+          const data = await apiFetch('/auth/usuarios', {
+            method: 'POST',
+            body: JSON.stringify({ nome, email, senha, negocioId, whatsappAtivo, permPrestadores, permServicos, permAgenda })
+          });
+          if (data.erro) { showAlert('error', data.erro); return; }
+          showAlert('success', `Usuário "${nome}" criado com sucesso!`);
+          fecharTabUsuarioModal();
+          await carregarNegocios();
+          carregarUsuarios();
+        } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+      } else {
+        // Edição
+        if (senha && senha.length < 8) { showAlert('error', 'Senha mínima: 8 caracteres.'); return; }
+        const body = { nome, email, negocioId, whatsappAtivo, permPrestadores, permServicos, permAgenda };
+        if (senha) body.senha = senha;
+        try {
+          const data = await apiFetch(`/auth/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+          if (data.erro) { showAlert('error', data.erro); return; }
+          showAlert('success', `Usuário "${nome}" atualizado!`);
+          fecharTabUsuarioModal();
+          await carregarNegocios();
+          carregarUsuarios();
+        } catch (e) { showAlert('error', 'Erro: ' + e.message); }
+      }
+    }
+
+    async function excluirUsuarioTab(id, nome) {
+      if (!confirm(`Excluir o usuário "${nome}"? Esta ação não pode ser desfeita.`)) return;
       try {
-        const body = {
-          nome: document.getElementById('uNome').value.trim(),
-          email: document.getElementById('uEmail').value.trim(),
-          senha: document.getElementById('uSenha').value,
-        };
-        if (!body.nome || !body.email || !body.senha) { showAlert('error', 'Preencha todos os campos.'); return; }
-        if (body.senha.length < 6) { showAlert('error', 'Senha mínima: 6 caracteres.'); return; }
-        const data = await apiFetch('/auth/usuarios', { method: 'POST', body: JSON.stringify(body) });
+        const data = await apiFetch(`/auth/usuarios/${id}`, { method: 'DELETE' });
         if (data.erro) { showAlert('error', data.erro); return; }
-        showAlert('success', `Usuário "${body.nome}" criado!`);
-        toggleNovoUsuario();
-        ['uNome','uEmail','uSenha'].forEach(id => document.getElementById(id).value = '');
+        showAlert('success', `Usuário "${nome}" removido.`);
+        await carregarNegocios();
         carregarUsuarios();
       } catch (e) { showAlert('error', 'Erro: ' + e.message); }
     }
@@ -2278,6 +2369,65 @@
       } catch (e) { showAlert('error', 'Erro: ' + e.message); }
     }
   </script>
+
+  <!-- ===== Modal Criar/Editar Usuário (aba Usuários) ===== -->
+  <div id="tabUsuarioModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:14px;padding:30px 28px;max-width:500px;width:93%;position:relative;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+      <button onclick="fecharTabUsuarioModal()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#999">✕</button>
+      <h3 id="tuModalTitle" style="margin:0 0 18px;color:var(--primary);font-size:1.1rem">Novo Usuário</h3>
+      <input type="hidden" id="tuId">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nome *</label>
+          <input type="text" id="tuNome" placeholder="Nome do colaborador">
+        </div>
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" id="tuEmail" placeholder="email@exemplo.com">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label id="tuSenhaLabel">Senha * <small style="color:var(--text-light)">(mín. 8 caracteres)</small></label>
+        <input type="password" id="tuSenha" placeholder="••••••••">
+        <div id="tuSenhaOpcional" style="display:none;font-size:.8rem;color:var(--text-light);margin-top:4px">Deixe vazio para não alterar a senha atual.</div>
+      </div>
+
+      <div class="form-group">
+        <label>Negócio vinculado</label>
+        <select id="tuNegocioId"></select>
+      </div>
+
+      <div style="padding:12px 14px;background:#f0fff4;border-radius:8px;border:1px solid #c6f6d5;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:.9rem;font-weight:600;color:#276749">
+          <input type="checkbox" id="tuWhatsappAtivo" style="width:16px;height:16px;accent-color:#25D366">
+          📱 WhatsApp ativo (recebe notificações)
+        </label>
+      </div>
+
+      <div style="padding:12px 14px;background:#f7f8ff;border-radius:8px;border:1px solid #e0e3ff;margin-bottom:18px">
+        <p style="font-size:.82rem;font-weight:700;color:#4a5568;margin:0 0 10px">🔐 Permissões no painel do negócio:</p>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;color:#333;margin-bottom:8px;cursor:pointer">
+          <input type="checkbox" id="tuPermPrestadores" style="width:15px;height:15px;accent-color:#667eea">
+          👤 Gerenciar Prestadores
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;color:#333;margin-bottom:8px;cursor:pointer">
+          <input type="checkbox" id="tuPermServicos" style="width:15px;height:15px;accent-color:#667eea">
+          ✂️ Gerenciar Serviços
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.9rem;color:#333;cursor:pointer">
+          <input type="checkbox" id="tuPermAgenda" style="width:15px;height:15px;accent-color:#667eea">
+          📆 Ajustar Agenda dos Profissionais
+        </label>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button onclick="salvarTabUsuario()" class="btn btn-success" style="flex:1">💾 Salvar</button>
+        <button onclick="fecharTabUsuarioModal()" class="btn btn-outline">Cancelar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal Editar Usuário -->
   <div id="editarUsuarioModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;align-items:center;justify-content:center">
