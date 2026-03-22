@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Supabase Client CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <title>Admin — agendei.io</title>
   <script>
     // Configuração Supabase
@@ -1200,6 +1200,7 @@
               <div class="negocio-actions">
                 <button class="btn btn-outline btn-sm" onclick="window.open('${linkAgendamento}','_blank')">🌐 Abrir</button>
                 <button class="btn btn-outline btn-sm" onclick="toggleEditarNegocio(${idx})">✏️ Editar</button>
+                <button class="btn btn-outline btn-sm" style="color:#25D366;border-color:#25D366" onclick="abrirWhatsappModal('${n.id}')">📱 WhatsApp</button>
                 ${deleteBtn}
               </div>
             </div>
@@ -1228,6 +1229,13 @@
           <div class="form-group"><label>Cidade</label><input type="text" id="e${idx}Cidade" value="${n.cidade || ''}"></div>
           <div class="form-group"><label>UF</label><input type="text" id="e${idx}Estado" value="${n.estado || ''}" maxlength="2" style="text-transform:uppercase"></div>
         </div>
+        <div class="form-group">
+          <label>Status do Negócio</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px">
+            <input type="checkbox" id="e${idx}Ativo" ${n.ativo !== false ? 'checked' : ''} style="width:16px;height:16px">
+            Negócio ativo (aceita agendamentos)
+          </label>
+        </div>
         <div class="btn-group">
           <button class="btn btn-success btn-sm" onclick="salvarEdicao(${idx})">💾 Salvar</button>
           <button class="btn btn-outline btn-sm" onclick="document.getElementById('editForm-${idx}').style.display='none'">Cancelar</button>
@@ -1247,6 +1255,7 @@
           bairro: document.getElementById(`e${idx}Bairro`).value.trim(),
           cidade: document.getElementById(`e${idx}Cidade`).value.trim(),
           estado: document.getElementById(`e${idx}Estado`).value.trim().toUpperCase(),
+          ativo: document.getElementById(`e${idx}Ativo`)?.checked ?? true,
         };
         const data = await apiFetch(`/negocios/${n.id}`, { method: 'PUT', body: JSON.stringify(body) });
         if (data.erro) { showAlert('error', data.erro); return; }
@@ -1872,6 +1881,106 @@
         navigator.serviceWorker.register('/sw.js').catch(() => {});
       });
     }
+
+    // ─── WhatsApp por negócio ───────────────────────────────────────────────
+    const WA_API = 'https://plataforma-agendamentos-api.onrender.com';
+    let waNegocioId = null;
+    let waPollInterval = null;
+
+    function abrirWhatsappModal(negocioId) {
+      waNegocioId = negocioId;
+      document.getElementById('waModal').style.display = 'flex';
+      verificarStatusWa();
+    }
+
+    function fecharWhatsappModal() {
+      document.getElementById('waModal').style.display = 'none';
+      pararPollWa();
+      waNegocioId = null;
+    }
+
+    async function verificarStatusWa() {
+      if (!waNegocioId) return;
+      try {
+        const res = await fetch(`${WA_API}/api/negocio/${waNegocioId}/whatsapp/status`, {
+          headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
+        });
+        const data = await res.json();
+        atualizarUIWa(data.status, data.qrcode);
+      } catch(e) { console.error('Erro status WhatsApp', e); }
+    }
+
+    function atualizarUIWa(status, qrcode) {
+      document.getElementById('waConectado').style.display = status === 'conectado' ? 'block' : 'none';
+      document.getElementById('waDesconectado').style.display = status !== 'conectado' ? 'block' : 'none';
+      document.getElementById('waInicial').style.display = (status !== 'conectado' && status !== 'conectando') ? 'block' : 'none';
+      document.getElementById('waConectando').style.display = status === 'conectando' ? 'block' : 'none';
+      if (status === 'conectando' && qrcode) {
+        document.getElementById('waQrImg').src = qrcode;
+        iniciarPollWa();
+      }
+      if (status === 'conectado') pararPollWa();
+    }
+
+    async function conectarWa() {
+      if (!waNegocioId) return;
+      try {
+        const res = await fetch(`${WA_API}/api/negocio/${waNegocioId}/whatsapp/conectar`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AUTH_TOKEN}` }
+        });
+        const data = await res.json();
+        if (data.erro) { alert(data.erro); return; }
+        atualizarUIWa('conectando', data.qrcode);
+      } catch(e) { alert('Erro ao conectar WhatsApp. Verifique as configurações do servidor.'); }
+    }
+
+    async function desconectarWa() {
+      if (!waNegocioId || !confirm('Desconectar o WhatsApp deste negócio?')) return;
+      await fetch(`${WA_API}/api/negocio/${waNegocioId}/whatsapp/desconectar`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
+      });
+      atualizarUIWa('desconectado', null);
+    }
+
+    function iniciarPollWa() {
+      if (waPollInterval) return;
+      waPollInterval = setInterval(verificarStatusWa, 5000);
+    }
+
+    function pararPollWa() {
+      if (waPollInterval) { clearInterval(waPollInterval); waPollInterval = null; }
+    }
   </script>
+
+  <!-- Modal WhatsApp -->
+  <div id="waModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:420px;width:90%;position:relative">
+      <button onclick="fecharWhatsappModal()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:20px;cursor:pointer">✕</button>
+      <h3 style="margin:0 0 6px">📱 WhatsApp do Negócio</h3>
+      <p style="color:#666;font-size:13px;margin-bottom:16px">Conecte o número de WhatsApp do negócio para enviar confirmações e lembretes automaticamente.</p>
+
+      <div id="waConectado" style="display:none">
+        <div style="display:flex;align-items:center;gap:10px;padding:12px;background:#e6f9ee;border-radius:8px;margin-bottom:16px">
+          <span style="font-size:24px">✅</span>
+          <div><strong>WhatsApp Conectado</strong><div style="font-size:13px;color:#555">Mensagens saem do número deste negócio</div></div>
+        </div>
+        <button onclick="desconectarWa()" style="background:none;border:1px solid #e53e3e;color:#e53e3e;padding:8px 16px;border-radius:6px;cursor:pointer">Desconectar</button>
+      </div>
+
+      <div id="waDesconectado">
+        <div id="waConectando" style="display:none;text-align:center">
+          <p style="font-size:13px;color:#555;margin-bottom:12px">Abra o WhatsApp → <strong>Dispositivos conectados → Conectar dispositivo</strong> → escaneie:</p>
+          <img id="waQrImg" src="" alt="QR Code" style="max-width:240px;border:2px solid #ddd;border-radius:8px;margin-bottom:8px">
+          <div style="font-size:12px;color:#888">QR expira em 60s · <a href="#" onclick="conectarWa();return false">Gerar novo</a></div>
+          <div style="margin-top:10px;font-size:13px;color:#888">Aguardando leitura...</div>
+        </div>
+        <div id="waInicial">
+          <button onclick="conectarWa()" style="background:#25D366;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:15px;cursor:pointer;width:100%">📱 Conectar WhatsApp</button>
+        </div>
+      </div>
+    </div>
+  </div>
   </body>
   </html>
