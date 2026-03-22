@@ -108,7 +108,6 @@ class BaileysManager {
         keepAliveIntervalMs: 20_000,
         retryRequestDelayMs: 2_000,
         maxMsgRetryCount: 3,
-        logger: undefined as any, // silencia logs internos do Baileys
       });
     } catch (e) {
       console.error(`[baileys] Erro ao criar socket para ${negocioId}:`, e);

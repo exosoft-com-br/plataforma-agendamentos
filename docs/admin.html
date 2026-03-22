@@ -732,6 +732,7 @@
     let AUTH_TOKEN = localStorage.getItem('authToken') || '';
     let CURRENT_USER = JSON.parse(localStorage.getItem('currentUser') || 'null');
     let negociosCache = [];
+    let usuariosPorNegocio = {}; // negocio_id → array de usuários
     let OAUTH_CONFIG = null;
 
     function isAdmin() { return CURRENT_USER && CURRENT_USER.role === 'admin'; }
@@ -1082,19 +1083,25 @@
     // ========================================================================
     async function carregarNegocios() {
       const ownerId = CURRENT_USER?.ownerId || CURRENT_USER?.id;
-      if (!ownerId) {
-        negociosCache = [];
-        renderNegocios();
-        return;
-      }
+      if (!ownerId) { negociosCache = []; renderNegocios(); return; }
       try {
-        const data = await apiFetch(`/negocios/${ownerId}`);
-        negociosCache = data.negocios || [];
+        // Carrega negócios e usuários em paralelo
+        const [dataNeg, dataUsu] = await Promise.all([
+          apiFetch(`/negocios/${ownerId}`),
+          apiFetch('/auth/usuarios').catch(() => ({ usuarios: [] }))
+        ]);
+        negociosCache = dataNeg.negocios || [];
+        // Agrupa usuários por negocio_id
+        usuariosPorNegocio = {};
+        for (const u of (dataUsu.usuarios || [])) {
+          if (!u.negocio_id) continue;
+          if (!usuariosPorNegocio[u.negocio_id]) usuariosPorNegocio[u.negocio_id] = [];
+          usuariosPorNegocio[u.negocio_id].push(u);
+        }
         renderNegocios();
       } catch (e) {
         showAlert('error', 'Erro ao carregar negócios: ' + e.message);
-        negociosCache = [];
-        renderNegocios();
+        negociosCache = []; renderNegocios();
       }
     }
 
@@ -1145,6 +1152,22 @@
                   📅 <strong>Link de agenda:</strong>
                   <input type="text" value="${linkAgenda}" readonly onclick="this.select();document.execCommand('copy');showAlert('success','Link copiado!')" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;font-size:.8rem;cursor:pointer;margin-top:4px" title="Clique para copiar">
                 </div>
+                ${(() => {
+                  const usu = usuariosPorNegocio[n.id] || [];
+                  if (!usu.length) return '';
+                  const lista = usu.map(u => `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#fff;border:1px solid #eee;border-radius:6px">
+                      <div>
+                        <span style="font-weight:600;font-size:13px">${u.nome}</span>
+                        <span style="color:#888;font-size:11px;margin-left:6px">${u.email}</span>
+                      </div>
+                      <button onclick="removerUsuarioNegocio('${u.id}')" style="background:none;border:1px solid #e53e3e;color:#e53e3e;padding:3px 8px;border-radius:5px;font-size:11px;cursor:pointer">Remover</button>
+                    </div>`).join('');
+                  return `<div class="negocio-detail" style="margin-top:10px">
+                    <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:6px">👥 Usuários com acesso ao painel (${usu.length})</div>
+                    <div style="display:flex;flex-direction:column;gap:5px">${lista}</div>
+                  </div>`;
+                })()}
               </div>
               <div class="negocio-actions">
                 <button class="btn btn-outline btn-sm" onclick="window.open('${linkAgendamento}','_blank')">🌐 Abrir</button>
@@ -2126,6 +2149,7 @@
         document.getElementById('muEmail').value = '';
         document.getElementById('muSenha').value = '';
         await carregarUsuariosNegocio();
+        carregarNegocios(); // atualiza o card para exibir o novo usuário
       } catch (e) { showAlert('error', 'Erro: ' + e.message); }
     }
 
@@ -2135,7 +2159,9 @@
         const data = await apiFetch(`/auth/usuarios/${usuarioId}`, { method: 'DELETE' });
         if (data.erro) { showAlert('error', data.erro); return; }
         showAlert('success', 'Usuário removido.');
-        await carregarUsuariosNegocio();
+        // Atualiza modal (se aberto) e recarrega os cards
+        if (_usuariosModalNegocioId) await carregarUsuariosNegocio();
+        carregarNegocios();
       } catch (e) { showAlert('error', 'Erro: ' + e.message); }
     }
   </script>
