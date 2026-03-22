@@ -1982,8 +1982,15 @@
       document.getElementById('waDesconectado').style.display = status !== 'conectado' ? 'block' : 'none';
       document.getElementById('waInicial').style.display = (status !== 'conectado' && status !== 'conectando') ? 'block' : 'none';
       document.getElementById('waConectando').style.display = status === 'conectando' ? 'block' : 'none';
-      if (status === 'conectando' && qrcode) {
-        document.getElementById('waQrImg').src = qrcode;
+      if (status === 'conectando') {
+        if (qrcode) {
+          document.getElementById('waQrImg').src = qrcode;
+          document.getElementById('waQrImg').style.display = 'block';
+          document.getElementById('waAguardandoQr').style.display = 'none';
+        } else {
+          document.getElementById('waQrImg').style.display = 'none';
+          document.getElementById('waAguardandoQr').style.display = 'block';
+        }
         iniciarPollWa();
       }
       if (status === 'conectado') pararPollWa();
@@ -1991,15 +1998,23 @@
 
     async function conectarWa() {
       if (!waNegocioId) return;
+      // Mostra estado de espera imediatamente
+      atualizarUIWa('conectando', null);
       try {
         const res = await fetch(`${WA_API}/api/negocio/${waNegocioId}/whatsapp/conectar`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AUTH_TOKEN}` }
         });
-        const data = await res.json();
-        if (data.erro) { alert(data.erro); return; }
-        atualizarUIWa('conectando', data.qrcode);
-      } catch(e) { alert('Erro ao conectar WhatsApp. Verifique as configurações do servidor.'); }
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(`HTTP ${res.status}: ${txt.slice(0, 200)}`);
+        }
+        // Servidor retorna imediatamente; polling buscará o QR em seguida
+      } catch(e) {
+        console.error('Erro conectar WhatsApp:', e);
+        atualizarUIWa('desconectado', null);
+        alert('Erro ao iniciar conexão WhatsApp: ' + (e.message || e));
+      }
     }
 
     async function desconectarWa() {
@@ -2013,7 +2028,7 @@
 
     function iniciarPollWa() {
       if (waPollInterval) return;
-      waPollInterval = setInterval(verificarStatusWa, 5000);
+      waPollInterval = setInterval(verificarStatusWa, 2000);
     }
 
     function pararPollWa() {
@@ -2039,7 +2054,11 @@
       <div id="waDesconectado">
         <div id="waConectando" style="display:none;text-align:center">
           <p style="font-size:13px;color:#555;margin-bottom:12px">Abra o WhatsApp → <strong>Dispositivos conectados → Conectar dispositivo</strong> → escaneie:</p>
-          <img id="waQrImg" src="" alt="QR Code" style="max-width:240px;border:2px solid #ddd;border-radius:8px;margin-bottom:8px">
+          <div id="waAguardandoQr" style="padding:32px 0;color:#888;font-size:14px">
+            <div style="font-size:28px;margin-bottom:8px">⏳</div>
+            Gerando QR Code, aguarde...
+          </div>
+          <img id="waQrImg" src="" alt="QR Code" style="display:none;max-width:240px;border:2px solid #ddd;border-radius:8px;margin-bottom:8px">
           <div style="font-size:12px;color:#888">QR expira em 60s · <a href="#" onclick="conectarWa();return false">Gerar novo</a></div>
           <div style="margin-top:10px;font-size:13px;color:#888">Aguardando leitura...</div>
         </div>
