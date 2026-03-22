@@ -156,6 +156,7 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
         .limit(1)
         .single();
 
+      const negocioId = negocioRow?.id;
       const instancia = negocioRow?.whatsapp_status === "conectado"
         ? (negocioRow.whatsapp_instancia ?? undefined)
         : undefined;
@@ -168,6 +169,7 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
         prestador: prestador.nome,
         nicho: nicho.nome_publico,
         dataFormatada,
+        negocioId,
         instancia,
       });
 
@@ -179,6 +181,7 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
           clienteNome,
           servico: servico.nome,
           dataFormatada,
+          negocioId,
           instancia,
         });
       }

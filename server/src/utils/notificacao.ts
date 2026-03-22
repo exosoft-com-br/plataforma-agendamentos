@@ -1,14 +1,24 @@
 import { criarProvedorWhatsApp, WhatsAppProvider } from "./whatsappAdapter";
+import { baileysManager } from "./baileysManager";
 
-function obterProvedor(instancia?: string): WhatsAppProvider | null {
+// ─── Envio unificado (Baileys > Evolution API fallback) ───────────────────────
+
+async function enviar(telefone: string, texto: string, negocioId?: string, instancia?: string): Promise<void> {
+  // 1. Tenta via Baileys (número do próprio negócio)
+  if (negocioId && baileysManager.getStatus(negocioId) === "conectado") {
+    await baileysManager.sendText(negocioId, telefone, texto);
+    return;
+  }
+
+  // 2. Fallback: Evolution API global
   const apiUrl = process.env.WHATSAPP_API_URL;
   const apiToken = process.env.WHATSAPP_API_TOKEN;
   const providerType = process.env.WHATSAPP_PROVIDER || "evolution";
   const instanceName = instancia || process.env.WHATSAPP_INSTANCE_NAME || "default";
+  if (!apiUrl || !apiToken) return;
 
-  if (!apiUrl || !apiToken) return null;
-
-  return criarProvedorWhatsApp(providerType, apiUrl, apiToken, instanceName);
+  const provedor: WhatsAppProvider = criarProvedorWhatsApp(providerType, apiUrl, apiToken, instanceName);
+  await provedor.sendMessage(telefone, texto);
 }
 
 // ─── Confirmação para o cliente ───────────────────────────────────────────────
@@ -20,11 +30,9 @@ export async function notificarConfirmacao(params: {
   prestador: string;
   nicho: string;
   dataFormatada: string;
+  negocioId?: string;
   instancia?: string;
 }): Promise<void> {
-  const provedor = obterProvedor(params.instancia);
-  if (!provedor) return;
-
   const mensagem =
     `✅ *Agendamento Confirmado!*\n\n` +
     `📋 Protocolo: *${params.protocolo}*\n` +
@@ -35,13 +43,13 @@ export async function notificarConfirmacao(params: {
     `Para cancelar, envie: *cancelar ${params.protocolo}*`;
 
   try {
-    await provedor.sendMessage(params.telefone, mensagem);
-  } catch (erro) {
-    console.error("Falha ao enviar notificação de confirmação:", erro);
+    await enviar(params.telefone, mensagem, params.negocioId, params.instancia);
+  } catch (e) {
+    console.error("[notificacao] Falha na confirmação:", e);
   }
 }
 
-// ─── Notificação de novo agendamento para o prestador ─────────────────────────
+// ─── Novo agendamento para o prestador ───────────────────────────────────────
 
 export async function notificarPrestadorNovoAgendamento(params: {
   telefonePrestador: string;
@@ -49,10 +57,10 @@ export async function notificarPrestadorNovoAgendamento(params: {
   clienteNome: string;
   servico: string;
   dataFormatada: string;
+  negocioId?: string;
   instancia?: string;
 }): Promise<void> {
-  const provedor = obterProvedor(params.instancia);
-  if (!provedor || !params.telefonePrestador) return;
+  if (!params.telefonePrestador) return;
 
   const mensagem =
     `📅 *Novo Agendamento Recebido!*\n\n` +
@@ -62,9 +70,9 @@ export async function notificarPrestadorNovoAgendamento(params: {
     `📋 Protocolo: ${params.protocolo}`;
 
   try {
-    await provedor.sendMessage(params.telefonePrestador, mensagem);
-  } catch (erro) {
-    console.error("Falha ao enviar notificação ao prestador:", erro);
+    await enviar(params.telefonePrestador, mensagem, params.negocioId, params.instancia);
+  } catch (e) {
+    console.error("[notificacao] Falha na notificação ao prestador:", e);
   }
 }
 
@@ -77,11 +85,9 @@ export async function notificarLembreteCliente(params: {
   prestador: string;
   nicho: string;
   dataFormatada: string;
+  negocioId?: string;
   instancia?: string;
 }): Promise<void> {
-  const provedor = obterProvedor(params.instancia);
-  if (!provedor) return;
-
   const mensagem =
     `⏰ *Lembrete de Agendamento*\n\n` +
     `Olá! Seu agendamento é *amanhã*:\n\n` +
@@ -93,13 +99,13 @@ export async function notificarLembreteCliente(params: {
     `Para cancelar, envie: *cancelar ${params.protocolo}*`;
 
   try {
-    await provedor.sendMessage(params.telefone, mensagem);
-  } catch (erro) {
-    console.error("Falha ao enviar lembrete ao cliente:", erro);
+    await enviar(params.telefone, mensagem, params.negocioId, params.instancia);
+  } catch (e) {
+    console.error("[notificacao] Falha no lembrete ao cliente:", e);
   }
 }
 
-// ─── Lembrete 24h para o prestador ────────────────────────────────────────────
+// ─── Lembrete 24h para o prestador ───────────────────────────────────────────
 
 export async function notificarLembretePrestador(params: {
   telefonePrestador: string;
@@ -107,10 +113,10 @@ export async function notificarLembretePrestador(params: {
   servico: string;
   dataFormatada: string;
   protocolo: string;
+  negocioId?: string;
   instancia?: string;
 }): Promise<void> {
-  const provedor = obterProvedor(params.instancia);
-  if (!provedor || !params.telefonePrestador) return;
+  if (!params.telefonePrestador) return;
 
   const mensagem =
     `⏰ *Lembrete de Agendamento*\n\n` +
@@ -121,9 +127,9 @@ export async function notificarLembretePrestador(params: {
     `📋 Protocolo: ${params.protocolo}`;
 
   try {
-    await provedor.sendMessage(params.telefonePrestador, mensagem);
-  } catch (erro) {
-    console.error("Falha ao enviar lembrete ao prestador:", erro);
+    await enviar(params.telefonePrestador, mensagem, params.negocioId, params.instancia);
+  } catch (e) {
+    console.error("[notificacao] Falha no lembrete ao prestador:", e);
   }
 }
 
@@ -132,19 +138,17 @@ export async function notificarLembretePrestador(params: {
 export async function notificarCancelamento(params: {
   telefone: string;
   protocolo: string;
+  negocioId?: string;
   instancia?: string;
 }): Promise<void> {
-  const provedor = obterProvedor(params.instancia);
-  if (!provedor) return;
-
   const mensagem =
     `❌ *Agendamento Cancelado*\n\n` +
     `📋 Protocolo: *${params.protocolo}*\n\n` +
     `Seu agendamento foi cancelado com sucesso.`;
 
   try {
-    await provedor.sendMessage(params.telefone, mensagem);
-  } catch (erro) {
-    console.error("Falha ao enviar notificação de cancelamento:", erro);
+    await enviar(params.telefone, mensagem, params.negocioId, params.instancia);
+  } catch (e) {
+    console.error("[notificacao] Falha no cancelamento:", e);
   }
 }

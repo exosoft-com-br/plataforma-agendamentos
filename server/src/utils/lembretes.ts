@@ -32,18 +32,20 @@ async function enviarLembretes(): Promise<void> {
 
   if (!agendamentos || agendamentos.length === 0) return;
 
-  // Busca instâncias WhatsApp dos negócios em batch
+  // Busca negócios para mapeamento de instâncias WhatsApp
   const nichoIds = [...new Set(agendamentos.map((a) => a.nicho_id))];
   const { data: negocios } = await supabase
     .from("negocios")
-    .select("nicho_id, whatsapp_instancia, whatsapp_status")
+    .select("id, nicho_id, whatsapp_instancia, whatsapp_status")
     .in("nicho_id", nichoIds)
     .eq("ativo", true);
 
-  const instanciaMap: Record<string, string | undefined> = {};
+  const negocioMap: Record<string, { id: string; instancia?: string }> = {};
   for (const n of negocios || []) {
-    instanciaMap[n.nicho_id] =
-      n.whatsapp_status === "conectado" ? (n.whatsapp_instancia ?? undefined) : undefined;
+    negocioMap[n.nicho_id] = {
+      id: n.id,
+      instancia: n.whatsapp_status === "conectado" ? (n.whatsapp_instancia ?? undefined) : undefined,
+    };
   }
 
   console.log(`[lembretes] Enviando ${agendamentos.length} lembrete(s)...`);
@@ -62,7 +64,9 @@ async function enviarLembretes(): Promise<void> {
     const nicho = (ag.nichos as unknown as { nome_publico: string } | null)?.nome_publico ?? ag.nicho_id;
     const prestador = ag.prestadores as unknown as { nome: string; whatsapp_numero: string | null } | null;
     const servico = (ag.servicos as unknown as { nome: string } | null)?.nome ?? "";
-    const instancia = instanciaMap[ag.nicho_id];
+    const negocio = negocioMap[ag.nicho_id];
+    const instancia = negocio?.instancia;
+    const negocioId = negocio?.id;
 
     await notificarLembreteCliente({
       telefone: ag.cliente_telefone,
@@ -71,6 +75,7 @@ async function enviarLembretes(): Promise<void> {
       prestador: prestador?.nome ?? "",
       nicho,
       dataFormatada,
+      negocioId,
       instancia,
     });
 
@@ -81,6 +86,7 @@ async function enviarLembretes(): Promise<void> {
         servico,
         dataFormatada,
         protocolo: ag.protocolo,
+        negocioId,
         instancia,
       });
     }
