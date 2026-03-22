@@ -1,7 +1,14 @@
 const API_URL = 'https://plataforma-agendamentos-api.onrender.com';
 
+const CURRENT_USER = JSON.parse(localStorage.getItem('currentUser') || 'null');
+const AUTH_TOKEN = localStorage.getItem('authToken') || '';
+
 async function apiFetch(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json', ...opts.headers };
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(AUTH_TOKEN ? { 'Authorization': `Bearer ${AUTH_TOKEN}` } : {}),
+    ...opts.headers
+  };
   const res = await fetch(`${API_URL}/api${path}`, { ...opts, headers });
   return res.json();
 }
@@ -117,8 +124,13 @@ function copiarLink(id) {
 async function carregarNegocios() {
   const el = document.getElementById('negociosList');
   el.innerHTML = '';
+  const ownerId = CURRENT_USER?.ownerId || CURRENT_USER?.id;
+  if (!ownerId) {
+    el.innerHTML = '<div class="empty">Faça login no painel principal para ver seus negócios.</div>';
+    return;
+  }
   try {
-    const data = await apiFetch('/negocios');
+    const data = await apiFetch(`/negocios/${ownerId}`);
     for (const n of (data.negocios||[])) {
       const baseUrl = 'https://app.agendei.io.exosoft.com.br/';
       const linkAgendamento = `${baseUrl}?negocio=${n.id}`;
