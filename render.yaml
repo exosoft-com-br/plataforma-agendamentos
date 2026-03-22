@@ -14,3 +14,19 @@ services:
         value: production
       # SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY
       # são configuradas via Dashboard/API do Render (não versionadas no git)
+
+  - type: web
+    name: agendei-io-app
+    runtime: static
+    region: oregon
+    plan: free
+    rootDir: docs
+    staticPublishPath: .
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
