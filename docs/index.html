@@ -300,6 +300,39 @@
         <button class="btn btn-secondary" onclick="showStep(3)">← Voltar</button>
       </div>
 
+      <!-- Step PIX: Pagamento obrigatório -->
+      <div id="stepPix" class="step">
+        <div style="text-align:center;padding:8px 0 16px">
+          <div style="font-size:2.5rem;margin-bottom:8px">💳</div>
+          <h2 style="font-size:1.1rem;color:#333">Pague a taxa de agendamento</h2>
+          <p style="color:#666;font-size:.85rem;margin-top:4px">Escaneie o QR Code com seu aplicativo do banco ou copie o código PIX.</p>
+        </div>
+
+        <div style="background:#f8fffe;border:2px solid #00c37a;border-radius:12px;padding:16px;text-align:center;margin-bottom:16px">
+          <div style="font-size:1.4rem;font-weight:700;color:#00a06a" id="pixValorDisplay"></div>
+          <div style="font-size:.8rem;color:#888;margin-top:2px" id="pixExpirarDisplay"></div>
+        </div>
+
+        <!-- QR Code -->
+        <div style="text-align:center;margin-bottom:16px">
+          <img id="pixQrImg" src="" alt="QR Code PIX" style="max-width:220px;border:2px solid #ddd;border-radius:10px">
+        </div>
+
+        <!-- Copia e Cola -->
+        <div style="margin-bottom:16px">
+          <label style="font-size:.8rem;color:#666;display:block;margin-bottom:4px">PIX Copia e Cola</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="pixQrText" readonly style="flex:1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:.75rem;background:#f8f8f8;cursor:text">
+            <button onclick="copiarPix()" style="padding:9px 14px;background:#667eea;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.8rem;white-space:nowrap">📋 Copiar</button>
+          </div>
+        </div>
+
+        <!-- Status do pagamento -->
+        <div id="pixStatus" style="text-align:center;padding:12px;background:#fff8e1;border-radius:8px;font-size:.85rem;color:#b8860b">
+          ⏳ Aguardando pagamento...
+        </div>
+      </div>
+
       <!-- Step 5: Sucesso -->
       <div id="step5" class="step">
         <div class="success-box">
@@ -565,6 +598,9 @@
       return (negocioData && negocioData.nicho) ? negocioData.nicho.id : NICHO_ID;
     }
 
+    let _pixTxid = null;
+    let _pixPollInterval = null;
+
     async function confirmarAgendamento() {
       const btn = document.getElementById('btnConfirmar');
       btn.disabled = true;
@@ -586,22 +622,78 @@
 
         const json = await res.json();
 
-        if (json.sucesso) {
-          document.getElementById('resultProtocolo').textContent = json.protocolo;
-          document.getElementById('resultMsg').textContent = json.mensagemConfirmacao;
-          showStep(5);
-          // 🎉 Toast de sucesso
-          mostrarToast('Agendamento realizado com sucesso!', '🎉', 5000);
-        } else {
+        if (!json.sucesso) {
           document.getElementById('err4').textContent = json.erro || 'Erro ao agendar.';
           btn.disabled = false;
           btn.textContent = '✅ Confirmar Agendamento';
+          return;
         }
+
+        // ── Fluxo PIX obrigatório ──────────────────────────────────────────
+        if (json.pixRequired && json.pix) {
+          _pixTxid = json.pix.txid;
+
+          // Preencher UI do PIX
+          document.getElementById('pixValorDisplay').textContent =
+            `R$ ${json.agendamento.taxaCobrada.toFixed(2).replace('.', ',')}`;
+
+          const expira = new Date(json.pix.expiraEm);
+          document.getElementById('pixExpirarDisplay').textContent =
+            `Válido até ${expira.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+
+          document.getElementById('pixQrImg').src =
+            json.pix.qrImagem.startsWith('data:') ? json.pix.qrImagem : `data:image/png;base64,${json.pix.qrImagem}`;
+          document.getElementById('pixQrText').value = json.pix.qr;
+
+          showStep('Pix');
+          iniciarPollPix();
+          return;
+        }
+
+        // ── Fluxo normal (sem PIX) ─────────────────────────────────────────
+        document.getElementById('resultProtocolo').textContent = json.protocolo;
+        document.getElementById('resultMsg').textContent = json.mensagemConfirmacao;
+        showStep(5);
+        mostrarToast('Agendamento realizado com sucesso!', '🎉', 5000);
+
       } catch (e) {
         document.getElementById('err4').textContent = `Erro: ${e.message}`;
         btn.disabled = false;
         btn.textContent = '✅ Confirmar Agendamento';
       }
+    }
+
+    function copiarPix() {
+      const txt = document.getElementById('pixQrText').value;
+      navigator.clipboard.writeText(txt).then(() => mostrarToast('Código PIX copiado!', '📋', 2500));
+    }
+
+    function iniciarPollPix() {
+      _pixPollInterval = setInterval(async () => {
+        if (!_pixTxid) return;
+        try {
+          const res = await fetch(`${API_URL}/api/pagamento/verificar/${_pixTxid}`);
+          const data = await res.json();
+
+          if (data.pago) {
+            clearInterval(_pixPollInterval);
+            document.getElementById('pixStatus').style.background = '#e6f9ee';
+            document.getElementById('pixStatus').style.color = '#27ae60';
+            document.getElementById('pixStatus').textContent = '✅ Pagamento confirmado!';
+            setTimeout(() => {
+              document.getElementById('resultProtocolo').textContent = _pixTxid.slice(0, 20);
+              document.getElementById('resultMsg').textContent = 'Pagamento PIX confirmado! Seu agendamento está garantido. Você receberá uma confirmação via WhatsApp.';
+              showStep(5);
+              mostrarToast('Pagamento confirmado! Agendamento garantido.', '✅', 6000);
+            }, 1500);
+          } else if (data.expirado) {
+            clearInterval(_pixPollInterval);
+            document.getElementById('pixStatus').style.background = '#fde8e8';
+            document.getElementById('pixStatus').style.color = '#e53e3e';
+            document.getElementById('pixStatus').textContent = '❌ PIX expirado. Volte e tente novamente.';
+          }
+        } catch { /* continua tentando */ }
+      }, 3000);
     }
 
     async function cancelarAgendamento() {

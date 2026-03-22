@@ -148,6 +148,12 @@ negocioRouter.get("/negocios/:ownerId", async (req: Request, res: Response) => {
       estado: n.estado,
       ativo: n.ativo,
       taxaAgendamento: n.taxa_agendamento != null ? Number(n.taxa_agendamento) : 0,
+      taxaAtiva: n.taxa_ativa ?? false,
+      pixBanco: n.pix_banco ?? null,
+      pixChavePix: n.pix_chave_pix ?? null,
+      pixClientId: n.pix_client_id ?? null,
+      // Nunca retornar secrets/certs completos — só indicar se estão configurados
+      pixConfigurado: !!(n.pix_client_id && n.pix_client_secret && n.pix_chave_pix && n.pix_cert_pem && n.pix_key_pem),
       nicho: n.nichos ? {
         nomePublico: n.nichos.nome_publico,
         saudacaoInicial: n.nichos.saudacao_inicial,
@@ -208,6 +214,28 @@ negocioRouter.put("/negocios/:negocioId", async (req: Request, res: Response) =>
       if (!isNaN(taxa) && taxa >= 0) {
         updates["taxa_agendamento"] = taxa;
       }
+    }
+    if (req.body.taxaAtiva !== undefined) {
+      updates["taxa_ativa"] = Boolean(req.body.taxaAtiva);
+    }
+    // Config PIX (apenas se enviado explicitamente)
+    if (req.body.pixBanco !== undefined) {
+      updates["pix_banco"] = req.body.pixBanco || null;
+    }
+    if (req.body.pixClientId !== undefined) {
+      updates["pix_client_id"] = req.body.pixClientId || null;
+    }
+    if (req.body.pixClientSecret !== undefined) {
+      updates["pix_client_secret"] = req.body.pixClientSecret || null;
+    }
+    if (req.body.pixChavePix !== undefined) {
+      updates["pix_chave_pix"] = req.body.pixChavePix || null;
+    }
+    if (req.body.pixCertPem !== undefined) {
+      updates["pix_cert_pem"] = req.body.pixCertPem || null;
+    }
+    if (req.body.pixKeyPem !== undefined) {
+      updates["pix_key_pem"] = req.body.pixKeyPem || null;
     }
 
     for (const f of fields) {

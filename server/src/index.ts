@@ -19,6 +19,7 @@ import { authRouter } from "./routes/auth";
 import { servicoRouter } from "./routes/servico";
 import { googleRouter } from "./routes/google";
 import { whatsappNegocioRouter } from "./routes/whatsappNegocio";
+import { pagamentoRouter } from "./routes/pagamento";
 import { iniciarJobLembretes } from "./utils/lembretes";
 
 const app = express();
@@ -131,6 +132,7 @@ app.use("/api", servicoRouter);
 // Rotas Google Calendar
 app.use("/api/google", googleRouter);
 app.use("/api", whatsappNegocioRouter);
+app.use("/api", pagamentoRouter);
 
 // Health check
 app.get("/health", (_req, res) => {

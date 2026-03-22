@@ -4,6 +4,7 @@ import { gerarProtocolo } from "../utils/gerarProtocolo";
 import { notificarConfirmacao, notificarCancelamento, notificarPrestadorNovoAgendamento } from "../utils/notificacao";
 import { sanitizar, sanitizarId, validarTelefone, validarDataHora } from "../utils/sanitizar";
 import { autenticar } from "../middleware/auth";
+import { criarCobrancaPix, InterCredentials } from "../utils/pixInter";
 
 export const bookingRouter = Router();
 
@@ -108,19 +109,39 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
       return;
     }
 
-    // Buscar taxa do negócio (para salvar snapshot no agendamento)
+    // Buscar negócio (taxa, PIX, WhatsApp)
     const { data: negocioTaxa } = await supabase
       .from("negocios")
-      .select("id, taxa_agendamento, whatsapp_instancia, whatsapp_status")
+      .select("id, taxa_agendamento, taxa_ativa, pix_banco, pix_client_id, pix_client_secret, pix_chave_pix, pix_cert_pem, pix_key_pem, whatsapp_instancia, whatsapp_status")
       .eq("nicho_id", nichoId)
       .eq("ativo", true)
       .limit(1)
       .single();
 
     const taxaCobrada = negocioTaxa?.taxa_agendamento ? Number(negocioTaxa.taxa_agendamento) : 0;
+    const taxaAtiva   = negocioTaxa?.taxa_ativa === true && taxaCobrada > 0;
+
+    // Verificar se PIX está configurado quando taxa está ativa
+    const pixConfigurado = taxaAtiva &&
+      negocioTaxa?.pix_banco === "inter" &&
+      negocioTaxa?.pix_client_id &&
+      negocioTaxa?.pix_client_secret &&
+      negocioTaxa?.pix_chave_pix &&
+      negocioTaxa?.pix_cert_pem &&
+      negocioTaxa?.pix_key_pem;
+
+    if (taxaAtiva && !pixConfigurado) {
+      res.status(503).json({
+        erro: "Este estabelecimento requer pagamento de taxa, mas o PIX não está configurado. Contate o estabelecimento.",
+      });
+      return;
+    }
 
     // Criar agendamento
     const protocolo = gerarProtocolo();
+
+    // Se taxa ativa: agendamento fica com pagamento pendente até o PIX ser pago
+    const pagamentoStatus = taxaAtiva ? "pendente" : "dispensado";
 
     const { data: agendamento, error: insertErr } = await supabase
       .from("agendamentos")
@@ -134,6 +155,7 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
         status: "confirmado",
         protocolo,
         taxa_cobrada: taxaCobrada,
+        pagamento_status: pagamentoStatus,
       })
       .select()
       .single();
@@ -158,6 +180,67 @@ bookingRouter.post("/booking", async (req: Request, res: Response) => {
       .replace("{protocolo}", protocolo)
       .replace("{dataHora}", dataFormatada);
 
+    // ── PIX: criar cobrança quando taxa_ativa ─────────────────────────────
+    let pixData: { txid: string; qr: string; qrImagem: string; expiraEm: string } | null = null;
+
+    if (taxaAtiva && pixConfigurado) {
+      try {
+        const creds: InterCredentials = {
+          clientId:     negocioTaxa!.pix_client_id,
+          clientSecret: negocioTaxa!.pix_client_secret,
+          chavePix:     negocioTaxa!.pix_chave_pix,
+          certPem:      negocioTaxa!.pix_cert_pem,
+          keyPem:       negocioTaxa!.pix_key_pem,
+          sandbox:      process.env.PIX_SANDBOX === "true",
+        };
+
+        const cobranca = await criarCobrancaPix(
+          creds,
+          taxaCobrada,
+          `Taxa de agendamento - Protocolo ${protocolo}`
+        );
+
+        // Salvar dados PIX no agendamento
+        await supabase.from("agendamentos").update({
+          pagamento_txid:    cobranca.txid,
+          pagamento_qr:      cobranca.qr,
+          pagamento_qr_img:  cobranca.qrImagem,
+          pagamento_expira_em: cobranca.expiraEm,
+        }).eq("id", agendamento.id);
+
+        pixData = {
+          txid:     cobranca.txid,
+          qr:       cobranca.qr,
+          qrImagem: cobranca.qrImagem,
+          expiraEm: cobranca.expiraEm,
+        };
+      } catch (e: any) {
+        console.error("[booking] Erro ao criar cobrança PIX:", e?.message);
+        // Reverter agendamento criado para não bloquear slot sem cobrança válida
+        await supabase.from("agendamentos").delete().eq("id", agendamento.id);
+        res.status(502).json({
+          erro: "Erro ao gerar cobrança PIX. Tente novamente ou contate o estabelecimento.",
+        });
+        return;
+      }
+    }
+
+    // ── Se taxa_ativa: retornar dados do PIX (ainda sem confirmar) ─────────
+    if (taxaAtiva && pixData) {
+      res.status(201).json({
+        sucesso: true,
+        pixRequired: true,
+        agendamento: {
+          id: agendamento.id,
+          protocolo,
+          taxaCobrada,
+        },
+        pix: pixData,
+      });
+      return;  // Notificações são enviadas após confirmação do pagamento pelo webhook/polling
+    }
+
+    // ── Sem taxa: fluxo normal ─────────────────────────────────────────────
     // Notificações + registro de cliente (fire-and-forget)
     // Usa instância WhatsApp do negócio se estiver conectada
     (async () => {
