@@ -377,7 +377,7 @@ authRouter.get("/auth/me", autenticar, async (req: Request, res: Response) => {
   try {
     const { data: user } = await supabase
       .from("usuarios")
-      .select("id, email, nome, role, ativo, provedor, avatar_url, owner_id, negocio_id")
+      .select("id, email, nome, role, ativo, provedor, avatar_url, owner_id, negocio_id, whatsapp_ativo, perm_prestadores, perm_servicos, perm_agenda")
       .eq("id", req.auth!.userId)
       .single();
 
@@ -396,6 +396,10 @@ authRouter.get("/auth/me", autenticar, async (req: Request, res: Response) => {
         negocioId: user.negocio_id || null,
         avatarUrl: user.avatar_url,
         provedor: user.provedor,
+        whatsappAtivo: user.whatsapp_ativo,
+        permPrestadores: user.perm_prestadores,
+        permServicos: user.perm_servicos,
+        permAgenda: user.perm_agenda,
       },
     });
   } catch {
@@ -442,6 +446,10 @@ authRouter.post("/auth/usuarios", autenticar, apenasAdmin, async (req: Request, 
     const senha = req.body.senha || "";
     const nome = sanitizar(req.body.nome || "");
     const negocioId = req.body.negocioId || null;
+    const whatsappAtivo = req.body.whatsappAtivo !== false; // default true
+    const permPrestadores = !!req.body.permPrestadores;
+    const permServicos = !!req.body.permServicos;
+    const permAgenda = !!req.body.permAgenda;
 
     if (!email || !senha || !nome) {
       res.status(400).json({ erro: "Email, senha e nome são obrigatórios." });
@@ -475,8 +483,12 @@ authRouter.post("/auth/usuarios", autenticar, apenasAdmin, async (req: Request, 
         owner_id: req.auth!.userId,
         negocio_id: negocioId,
         provedor: "email",
+        whatsapp_ativo: whatsappAtivo,
+        perm_prestadores: permPrestadores,
+        perm_servicos: permServicos,
+        perm_agenda: permAgenda,
       })
-      .select("id, email, nome, role, criado_em, negocio_id")
+      .select("id, email, nome, role, criado_em, negocio_id, whatsapp_ativo, perm_prestadores, perm_servicos, perm_agenda")
       .single();
 
     if (error) {
@@ -499,7 +511,7 @@ authRouter.get("/auth/usuarios/negocio/:negocioId", autenticar, apenasAdmin, asy
     const negocioId = req.params.negocioId;
     const { data, error } = await supabase
       .from("usuarios")
-      .select("id, email, nome, role, ativo, criado_em, negocio_id")
+      .select("id, email, nome, role, ativo, criado_em, negocio_id, whatsapp_ativo, perm_prestadores, perm_servicos, perm_agenda")
       .eq("negocio_id", negocioId)
       .order("criado_em", { ascending: false });
 

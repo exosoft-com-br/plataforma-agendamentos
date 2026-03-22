@@ -1155,14 +1155,22 @@
                 ${(() => {
                   const usu = usuariosPorNegocio[n.id] || [];
                   if (!usu.length) return '';
-                  const lista = usu.map(u => `
+                  const lista = usu.map(u => {
+                    const badges = [];
+                    if (u.whatsapp_ativo) badges.push('<span style="font-size:10px;background:#e6f9ee;color:#276749;padding:1px 5px;border-radius:4px">📱WA</span>');
+                    if (u.perm_prestadores) badges.push('<span style="font-size:10px;background:#eef2ff;color:#4338ca;padding:1px 5px;border-radius:4px">👤</span>');
+                    if (u.perm_servicos) badges.push('<span style="font-size:10px;background:#eef2ff;color:#4338ca;padding:1px 5px;border-radius:4px">✂️</span>');
+                    if (u.perm_agenda) badges.push('<span style="font-size:10px;background:#eef2ff;color:#4338ca;padding:1px 5px;border-radius:4px">📆</span>');
+                    return `
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#fff;border:1px solid #eee;border-radius:6px">
                       <div>
                         <span style="font-weight:600;font-size:13px">${u.nome}</span>
                         <span style="color:#888;font-size:11px;margin-left:6px">${u.email}</span>
+                        ${badges.length ? `<span style="margin-left:6px">${badges.join(' ')}</span>` : ''}
                       </div>
                       <button onclick="removerUsuarioNegocio('${u.id}')" style="background:none;border:1px solid #e53e3e;color:#e53e3e;padding:3px 8px;border-radius:5px;font-size:11px;cursor:pointer">Remover</button>
-                    </div>`).join('');
+                    </div>`;
+                  }).join('');
                   return `<div class="negocio-detail" style="margin-top:10px">
                     <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:6px">👥 Usuários com acesso ao painel (${usu.length})</div>
                     <div style="display:flex;flex-direction:column;gap:5px">${lista}</div>
@@ -2085,6 +2093,29 @@
           <div><label style="font-size:12px;color:#555">Email</label><input type="email" id="muEmail" placeholder="email@exemplo.com" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
         </div>
         <div style="margin-bottom:10px"><label style="font-size:12px;color:#555">Senha (mín. 6 caracteres)</label><input type="password" id="muSenha" placeholder="••••••" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box"></div>
+        <!-- WhatsApp -->
+        <div style="margin:12px 0;padding:10px 12px;background:#f0fff4;border-radius:8px;border:1px solid #c6f6d5">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:600;color:#276749">
+            <input type="checkbox" id="muWhatsappAtivo" checked style="width:16px;height:16px;accent-color:#25D366">
+            📱 WhatsApp ativo (recebe notificações)
+          </label>
+        </div>
+        <!-- Permissões de tela -->
+        <div style="margin:12px 0;padding:10px 12px;background:#f7f8ff;border-radius:8px;border:1px solid #e0e3ff">
+          <p style="font-size:12px;font-weight:700;color:#4a5568;margin:0 0 8px">🔐 Permissões no painel do negócio:</p>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" id="muPermPrestadores" style="width:15px;height:15px;accent-color:#667eea">
+            👤 Gerenciar Prestadores
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" id="muPermServicos" style="width:15px;height:15px;accent-color:#667eea">
+            ✂️ Gerenciar Serviços
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer">
+            <input type="checkbox" id="muPermAgenda" style="width:15px;height:15px;accent-color:#667eea">
+            📆 Ajustar Agenda dos Profissionais
+          </label>
+        </div>
         <button onclick="criarUsuarioNegocio()" style="background:#667eea;color:#fff;border:none;padding:9px 18px;border-radius:6px;cursor:pointer;font-size:13px">+ Criar Usuário</button>
       </div>
 
@@ -2137,15 +2168,21 @@
           list.innerHTML = '<p style="color:#999;font-size:13px">Nenhum usuário vinculado ainda.</p>';
           return;
         }
-        list.innerHTML = usuarios.map(u => `
+        list.innerHTML = usuarios.map(u => {
+          const badges = [];
+          if (u.whatsapp_ativo) badges.push('<span style="font-size:10px;background:#e6f9ee;color:#276749;padding:1px 5px;border-radius:4px">📱WA</span>');
+          if (u.perm_prestadores) badges.push('<span style="font-size:10px;background:#eef2ff;color:#4338ca;padding:1px 5px;border-radius:4px">👤</span>');
+          if (u.perm_servicos) badges.push('<span style="font-size:10px;background:#eef2ff;color:#4338ca;padding:1px 5px;border-radius:4px">✂️</span>');
+          if (u.perm_agenda) badges.push('<span style="font-size:10px;background:#eef2ff;color:#4338ca;padding:1px 5px;border-radius:4px">📆</span>');
+          return `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid #eee;border-radius:8px;margin-bottom:8px">
             <div>
-              <div style="font-weight:600;font-size:14px">${u.nome}</div>
+              <div style="font-weight:600;font-size:14px">${u.nome} ${badges.join(' ')}</div>
               <div style="color:#666;font-size:12px">${u.email}</div>
             </div>
             <button onclick="removerUsuarioNegocio('${u.id}')" style="background:none;border:1px solid #e53e3e;color:#e53e3e;padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer">Remover</button>
-          </div>
-        `).join('');
+          </div>`;
+        }).join('');
       } catch (e) {
         list.innerHTML = '<p style="color:#e53e3e;font-size:13px">Erro ao carregar usuários.</p>';
       }
@@ -2157,16 +2194,24 @@
       const senha = document.getElementById('muSenha').value;
       if (!nome || !email || !senha) { showAlert('error', 'Preencha todos os campos.'); return; }
       if (senha.length < 6) { showAlert('error', 'Senha deve ter ao menos 6 caracteres.'); return; }
+      const whatsappAtivo = document.getElementById('muWhatsappAtivo').checked;
+      const permPrestadores = document.getElementById('muPermPrestadores').checked;
+      const permServicos = document.getElementById('muPermServicos').checked;
+      const permAgenda = document.getElementById('muPermAgenda').checked;
       try {
         const data = await apiFetch('/auth/usuarios', {
           method: 'POST',
-          body: JSON.stringify({ nome, email, senha, negocioId: _usuariosModalNegocioId })
+          body: JSON.stringify({ nome, email, senha, negocioId: _usuariosModalNegocioId, whatsappAtivo, permPrestadores, permServicos, permAgenda })
         });
         if (data.erro) { showAlert('error', data.erro); return; }
         showAlert('success', 'Usuário criado com sucesso!');
         document.getElementById('muNome').value = '';
         document.getElementById('muEmail').value = '';
         document.getElementById('muSenha').value = '';
+        document.getElementById('muWhatsappAtivo').checked = true;
+        document.getElementById('muPermPrestadores').checked = false;
+        document.getElementById('muPermServicos').checked = false;
+        document.getElementById('muPermAgenda').checked = false;
         await carregarUsuariosNegocio();
         carregarNegocios(); // atualiza o card para exibir o novo usuário
       } catch (e) { showAlert('error', 'Erro: ' + e.message); }
