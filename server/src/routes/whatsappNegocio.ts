@@ -21,12 +21,18 @@ whatsappNegocioRouter.post(
     // Inicia conexão (não-bloqueante — QR gerado assincronamente)
     baileysManager.connect(negocioId).catch(console.error);
 
-    // Aguarda até 8s para o QR aparecer
+    // Aguarda até 20s para o QR aparecer (fetchLatestBaileysVersion pode levar ~8s)
     let qrString: string | null = null;
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 40; i++) {
       await new Promise(r => setTimeout(r, 500));
       qrString = baileysManager.getQR(negocioId);
       if (qrString) break;
+      // Se já desconectou (erro), para de esperar
+      if (baileysManager.getStatus(negocioId) === "desconectado") break;
+    }
+
+    if (!qrString) {
+      console.warn(`[whatsapp] QR não gerado em 20s para negócio ${negocioId} — status: ${baileysManager.getStatus(negocioId)}`);
     }
 
     let qrImage: string | null = null;
@@ -37,6 +43,7 @@ whatsappNegocioRouter.post(
     res.json({
       status: baileysManager.getStatus(negocioId),
       qrcode: qrImage,
+      erro: !qrImage ? "QR Code não gerado. Verifique os logs do servidor." : undefined,
     });
   }
 );

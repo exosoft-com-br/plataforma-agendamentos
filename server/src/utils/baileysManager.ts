@@ -1,5 +1,6 @@
 import makeWASocket, {
   DisconnectReason,
+  fetchLatestBaileysVersion,
   useMultiFileAuthState,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
@@ -7,8 +8,22 @@ import * as fs from "fs";
 import * as path from "path";
 import { supabase } from "../supabaseClient";
 
-// Versão WA fixada — evita falha de rede no fetchLatestBaileysVersion()
-const WA_VERSION: [number, number, number] = [2, 3000, 1023456789];
+// Versão conhecida como fallback se fetchLatestBaileysVersion() falhar/timeout
+const WA_VERSION_FALLBACK: [number, number, number] = [2, 3000, 1015901307];
+
+async function resolverVersaoWA(): Promise<[number, number, number]> {
+  try {
+    const { version } = await Promise.race([
+      fetchLatestBaileysVersion(),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 8_000)),
+    ]);
+    console.log(`[baileys] Versão WA obtida: ${version}`);
+    return version;
+  } catch {
+    console.warn(`[baileys] fetchLatestBaileysVersion falhou — usando fallback ${WA_VERSION_FALLBACK}`);
+    return WA_VERSION_FALLBACK;
+  }
+}
 
 type WStatus = "desconectado" | "conectando" | "conectado";
 
@@ -96,10 +111,12 @@ class BaileysManager {
       return;
     }
 
+    const version = await resolverVersaoWA();
+
     let socket: ReturnType<typeof makeWASocket>;
     try {
       socket = makeWASocket({
-        version: WA_VERSION,
+        version,
         auth: state,
         printQRInTerminal: false,
         browser: ["Chrome (Linux)", "", ""],
