@@ -21,6 +21,7 @@ import { googleRouter } from "./routes/google";
 import { whatsappNegocioRouter } from "./routes/whatsappNegocio";
 import { pagamentoRouter } from "./routes/pagamento";
 import { disponibilidadesRouter } from "./routes/disponibilidades";
+import { baileysManager } from "./utils/baileysManager";
 import { iniciarJobLembretes } from "./utils/lembretes";
 
 const app = express();
@@ -161,6 +162,8 @@ app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`🔒 CORS restrito a: ${allowedOrigins.join(", ")}`);
   iniciarJobLembretes();
+  // Restaura sessões WhatsApp que estavam conectadas antes do restart
+  baileysManager.reconectarSessoesPersistidas().catch(console.error);
 });
 
 export default app;

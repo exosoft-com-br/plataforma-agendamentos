@@ -1,6 +1,5 @@
 import makeWASocket, {
   DisconnectReason,
-  fetchLatestBaileysVersion,
   useMultiFileAuthState,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
@@ -8,12 +7,16 @@ import * as fs from "fs";
 import * as path from "path";
 import { supabase } from "../supabaseClient";
 
+// Versão WA fixada — evita falha de rede no fetchLatestBaileysVersion()
+const WA_VERSION: [number, number, number] = [2, 3000, 1023456789];
+
 type WStatus = "desconectado" | "conectando" | "conectado";
 
 interface WInstance {
   socket: ReturnType<typeof makeWASocket> | null;
   qr: string | null;
   status: WStatus;
+  reconnectAttempts: number;
 }
 
 class BaileysManager {
@@ -34,32 +37,85 @@ class BaileysManager {
     return this.instances.get(negocioId)?.qr ?? null;
   }
 
+  /**
+   * Reconecta automaticamente todos os negócios que tinham status "conectado" no banco.
+   * Chamado no startup do servidor para restaurar sessões persistidas em /tmp.
+   */
+  async reconectarSessoesPersistidas(): Promise<void> {
+    try {
+      const { data: negocios } = await supabase
+        .from("negocios")
+        .select("id")
+        .eq("whatsapp_status", "conectado");
+
+      if (!negocios?.length) return;
+
+      for (const n of negocios) {
+        const sessionDir = path.join(this.sessionsDir, n.id);
+        if (fs.existsSync(sessionDir) && fs.readdirSync(sessionDir).length > 0) {
+          console.log(`[baileys] Restaurando sessão do negócio ${n.id}...`);
+          this.connect(n.id).catch((e) =>
+            console.error(`[baileys] Falha ao restaurar ${n.id}:`, e)
+          );
+        } else {
+          // Sessão sumiu (restart limpo) — marca como desconectado no banco
+          await this.updateStatus(n.id, "desconectado");
+        }
+      }
+    } catch (e) {
+      console.error("[baileys] Erro ao restaurar sessões:", e);
+    }
+  }
+
   async connect(negocioId: string): Promise<void> {
     const existing = this.instances.get(negocioId);
     if (existing?.status === "conectado") return;
 
-    // Fecha socket existente
+    // Fecha socket existente sem travar
     try { existing?.socket?.end(undefined); } catch {}
 
     const sessionDir = path.join(this.sessionsDir, negocioId);
     fs.mkdirSync(sessionDir, { recursive: true });
 
-    const instance: WInstance = { socket: null, qr: null, status: "conectando" };
+    const instance: WInstance = {
+      socket: null,
+      qr: null,
+      status: "conectando",
+      reconnectAttempts: (existing?.reconnectAttempts ?? 0),
+    };
     this.instances.set(negocioId, instance);
     await this.updateStatus(negocioId, "conectando");
 
-    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
-    const { version } = await fetchLatestBaileysVersion();
+    let state: any, saveCreds: any;
+    try {
+      ({ state, saveCreds } = await useMultiFileAuthState(sessionDir));
+    } catch (e) {
+      console.error(`[baileys] Erro ao carregar estado de sessão de ${negocioId}:`, e);
+      instance.status = "desconectado";
+      await this.updateStatus(negocioId, "desconectado");
+      return;
+    }
 
-    const socket = makeWASocket({
-      version,
-      auth: state,
-      printQRInTerminal: false,
-      browser: ["Agendei.io", "Chrome", "22.0"],
-      connectTimeoutMs: 60_000,
-      defaultQueryTimeoutMs: 60_000,
-      keepAliveIntervalMs: 25_000,
-    });
+    let socket: ReturnType<typeof makeWASocket>;
+    try {
+      socket = makeWASocket({
+        version: WA_VERSION,
+        auth: state,
+        printQRInTerminal: false,
+        browser: ["Chrome (Linux)", "", ""],
+        connectTimeoutMs: 30_000,
+        defaultQueryTimeoutMs: 30_000,
+        keepAliveIntervalMs: 20_000,
+        retryRequestDelayMs: 2_000,
+        maxMsgRetryCount: 3,
+        logger: undefined as any, // silencia logs internos do Baileys
+      });
+    } catch (e) {
+      console.error(`[baileys] Erro ao criar socket para ${negocioId}:`, e);
+      instance.status = "desconectado";
+      await this.updateStatus(negocioId, "desconectado");
+      return;
+    }
 
     instance.socket = socket;
 
@@ -67,25 +123,43 @@ class BaileysManager {
 
     socket.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
       if (qr) {
+        console.log(`[baileys] QR gerado para ${negocioId}`);
         instance.qr = qr;
         instance.status = "conectando";
+        instance.reconnectAttempts = 0; // reset ao gerar novo QR
       }
 
       if (connection === "close") {
-        const code = (lastDisconnect?.error as Boom)?.output?.statusCode;
-        const shouldReconnect = code !== DisconnectReason.loggedOut;
+        const boom = lastDisconnect?.error as Boom | undefined;
+        const code  = boom?.output?.statusCode;
+        const reason = boom?.message || "desconhecido";
+        const loggedOut = code === DisconnectReason.loggedOut;
+
+        console.warn(`[baileys] Conexão fechada para ${negocioId} — código: ${code} (${reason})`);
+
         instance.status = "desconectado";
-        instance.qr = null;
-        instance.socket = null;
+        instance.qr     = null;
+        instance.socket  = null;
         await this.updateStatus(negocioId, "desconectado");
-        if (shouldReconnect) {
-          setTimeout(() => this.connect(negocioId).catch(console.error), 5_000);
+
+        if (!loggedOut && instance.reconnectAttempts < 5) {
+          instance.reconnectAttempts++;
+          const delay = Math.min(5_000 * instance.reconnectAttempts, 30_000);
+          console.log(`[baileys] Tentativa ${instance.reconnectAttempts}/5 em ${delay}ms para ${negocioId}`);
+          setTimeout(() => this.connect(negocioId).catch(console.error), delay);
+        } else if (loggedOut) {
+          // Remove sessão local após logout
+          const sessionDir = path.join(this.sessionsDir, negocioId);
+          if (fs.existsSync(sessionDir)) {
+            fs.rmSync(sessionDir, { recursive: true, force: true });
+          }
         }
       }
 
       if (connection === "open") {
         instance.status = "conectado";
-        instance.qr = null;
+        instance.qr     = null;
+        instance.reconnectAttempts = 0;
         await this.updateStatus(negocioId, "conectado");
         console.log(`[baileys] ✅ Negócio ${negocioId} conectado ao WhatsApp`);
       }
@@ -109,11 +183,11 @@ class BaileysManager {
   async sendText(negocioId: string, phone: string, text: string): Promise<void> {
     const inst = this.instances.get(negocioId);
     if (!inst?.socket || inst.status !== "conectado") {
-      throw new Error("WhatsApp não conectado");
+      throw new Error("WhatsApp não conectado para este negócio");
     }
     const digits = phone.replace(/\D/g, "");
     const number = digits.startsWith("55") ? digits : `55${digits}`;
-    const jid = `${number}@s.whatsapp.net`;
+    const jid    = `${number}@s.whatsapp.net`;
     await inst.socket.sendMessage(jid, { text });
   }
 
@@ -121,7 +195,7 @@ class BaileysManager {
     try {
       await supabase.from("negocios").update({ whatsapp_status: status }).eq("id", negocioId);
     } catch (e) {
-      console.error("[baileys] Erro ao atualizar status:", e);
+      console.error("[baileys] Erro ao atualizar status no banco:", e);
     }
   }
 }
