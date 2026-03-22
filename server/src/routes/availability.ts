@@ -77,7 +77,30 @@ availabilityRouter.get("/availability", async (req: Request, res: Response) => {
       return;
     }
 
-    // 3. Gerar slots do dia
+    // 3. Verificar disponibilidade personalizada para esta data
+    const { data: disp } = await supabase
+      .from("disponibilidades")
+      .select("*")
+      .eq("prestador_id", prestadorId)
+      .eq("data", dataConsulta)
+      .maybeSingle();
+
+    if (disp) {
+      if (!disp.disponivel) {
+        res.json({ slots: [], mensagem: "Prestador não atende nesta data." });
+        return;
+      }
+      // Sobrescreve horário com o personalizado do dia
+      if (disp.horario_inicio) prestador.horarioAtendimento.inicio = disp.horario_inicio;
+      if (disp.horario_fim)    prestador.horarioAtendimento.fim    = disp.horario_fim;
+      // Garante que o dia da semana está incluído (pode não estar em dias_semana padrão)
+      const diaSemana = new Date(`${dataConsulta}T12:00:00Z`).getUTCDay();
+      if (!prestador.horarioAtendimento.diasSemana.includes(diaSemana)) {
+        prestador.horarioAtendimento.diasSemana = [...prestador.horarioAtendimento.diasSemana, diaSemana];
+      }
+    }
+
+    // 4. Gerar slots do dia
     const todosSlots = gerarSlotsDoDia(dataConsulta, prestador, s.duracao_minutos);
 
     if (todosSlots.length === 0) {
@@ -85,7 +108,7 @@ availabilityRouter.get("/availability", async (req: Request, res: Response) => {
       return;
     }
 
-    // 4. Buscar agendamentos confirmados do dia (horário de Brasília UTC-3)
+    // 5. Buscar agendamentos confirmados do dia (horário de Brasília UTC-3)
     const inicioDoDia = `${dataConsulta}T00:00:00-03:00`;
     const fimDoDia = `${dataConsulta}T23:59:59-03:00`;
 
@@ -99,7 +122,7 @@ availabilityRouter.get("/availability", async (req: Request, res: Response) => {
 
     const horariosOcupados = (agendamentos || []).map((a: any) => a.data_hora);
 
-    // 5. Marcar slots ocupados
+    // 6. Marcar slots ocupados
     const slotsComDisponibilidade: Slot[] = todosSlots.map((slot) => {
       const slotInicio = new Date(slot.inicio).getTime();
       const slotFim = new Date(slot.fim).getTime();

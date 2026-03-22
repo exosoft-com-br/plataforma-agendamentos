@@ -20,6 +20,7 @@ import { servicoRouter } from "./routes/servico";
 import { googleRouter } from "./routes/google";
 import { whatsappNegocioRouter } from "./routes/whatsappNegocio";
 import { pagamentoRouter } from "./routes/pagamento";
+import { disponibilidadesRouter } from "./routes/disponibilidades";
 import { iniciarJobLembretes } from "./utils/lembretes";
 
 const app = express();
@@ -105,7 +106,7 @@ app.use(generalLimiter);
 // ============================================================
 // SEGURANÇA: Body parser com limite de tamanho
 // ============================================================
-app.use(express.json({ limit: "10kb" }));
+app.use(express.json({ limit: "64kb" })); // 64kb para suportar certificados PEM no config PIX
 
 // ============================================================
 // SEGURANÇA: Desabilitar header X-Powered-By
@@ -133,6 +134,7 @@ app.use("/api", servicoRouter);
 app.use("/api/google", googleRouter);
 app.use("/api", whatsappNegocioRouter);
 app.use("/api", pagamentoRouter);
+app.use("/api", disponibilidadesRouter);
 
 // Health check
 app.get("/health", (_req, res) => {
