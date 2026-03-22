@@ -22,7 +22,8 @@ export class EvolutionAPIProvider implements WhatsAppProvider {
   private instanceName: string;
 
   constructor(apiUrl: string, apiToken: string, instanceName = "default") {
-    this.apiUrl = apiUrl.replace(/\/$/, "");
+    const normalized = apiUrl.startsWith("http") ? apiUrl : `https://${apiUrl}`;
+    this.apiUrl = normalized.replace(/\/$/, "");
     this.apiToken = apiToken;
     this.instanceName = instanceName;
   }
