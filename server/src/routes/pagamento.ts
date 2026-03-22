@@ -1,41 +1,24 @@
 /**
  * pagamento.ts
- * Rotas de pagamento PIX (Banco Inter / C6).
+ * Rotas de pagamento PIX — fluxo simplificado.
  *
- * POST /api/pagamento/verificar/:txid  — polling de status de pagamento
- * POST /api/pagamento/webhook/inter    — webhook do Banco Inter (confirmação instantânea)
+ * O PIX é gerado localmente (sem API de banco).
+ * A confirmação é feita pelo cliente ("Já Paguei") ou manualmente pelo admin.
+ *
+ * POST /api/pagamento/confirmar/:agendamentoId  — cliente confirma que pagou
+ * GET  /api/pagamento/status/:agendamentoId     — verifica status do pagamento
+ * PUT  /api/pagamento/admin/:agendamentoId      — admin marca como pago/cancelado
  */
 
 import { Router, Request, Response } from "express";
 import { supabase } from "../supabaseClient";
-import { verificarPagamentoPix, InterCredentials } from "../utils/pixInter";
+import { autenticar } from "../middleware/auth";
 import { notificarConfirmacao, notificarPrestadorNovoAgendamento } from "../utils/notificacao";
-import { baileysManager } from "../utils/baileysManager";
 
 export const pagamentoRouter = Router();
 
-/** Monta credenciais Inter a partir do negócio */
-function montarCredenciais(negocio: any): InterCredentials | null {
-  if (
-    !negocio.pix_client_id ||
-    !negocio.pix_client_secret ||
-    !negocio.pix_chave_pix ||
-    !negocio.pix_cert_pem ||
-    !negocio.pix_key_pem
-  ) return null;
-
-  return {
-    clientId: negocio.pix_client_id,
-    clientSecret: negocio.pix_client_secret,
-    chavePix: negocio.pix_chave_pix,
-    certPem: negocio.pix_cert_pem,
-    keyPem: negocio.pix_key_pem,
-    sandbox: process.env.PIX_SANDBOX === "true",
-  };
-}
-
-/** Envia notificações e registra cliente após confirmação de pagamento */
-async function confirmarPagamentoAgendamento(agendamentoId: string): Promise<void> {
+/** Envia notificações WhatsApp e registra cliente após confirmação de pagamento */
+async function processarPagamentoConfirmado(agendamentoId: string): Promise<void> {
   const { data: ag } = await supabase
     .from("agendamentos")
     .select(`
@@ -78,10 +61,6 @@ async function confirmarPagamentoAgendamento(agendamentoId: string): Promise<voi
     hour: "2-digit", minute: "2-digit",
   });
 
-  const textoConfirmacao = ((ag.nichos as any)?.texto_confirmacao || "")
-    .replace("{protocolo}", ag.protocolo)
-    .replace("{dataHora}", dataFormatada);
-
   // Notificar cliente
   await notificarConfirmacao({
     telefone: ag.cliente_telefone,
@@ -121,95 +100,141 @@ async function confirmarPagamentoAgendamento(agendamentoId: string): Promise<voi
 }
 
 // ============================================================
-// GET /api/pagamento/verificar/:txid
-// Polling de status — chamado pelo frontend a cada 3s
+// POST /api/pagamento/confirmar/:agendamentoId
+// Cliente clica "Já Paguei" → confirma o pagamento
 // ============================================================
-pagamentoRouter.get("/pagamento/verificar/:txid", async (req: Request, res: Response) => {
-  const txid = req.params.txid;
-  if (!txid) { res.status(400).json({ erro: "txid obrigatório." }); return; }
+pagamentoRouter.post("/pagamento/confirmar/:agendamentoId", async (req: Request, res: Response) => {
+  const { agendamentoId } = req.params;
 
   try {
-    // Buscar agendamento pelo txid
     const { data: ag } = await supabase
       .from("agendamentos")
-      .select("id, pagamento_status, pagamento_expira_em, nicho_id, protocolo, mensagem_confirmacao")
-      .eq("pagamento_txid", txid)
+      .select("id, pagamento_status, pagamento_expira_em, protocolo")
+      .eq("id", agendamentoId)
       .single();
 
-    if (!ag) { res.status(404).json({ erro: "Cobrança não encontrada." }); return; }
-
-    // Se já pago no banco
+    if (!ag) {
+      res.status(404).json({ erro: "Agendamento não encontrado." });
+      return;
+    }
     if (ag.pagamento_status === "pago") {
-      res.json({ pago: true, status: "CONCLUIDA" });
+      res.json({ sucesso: true, mensagem: "Pagamento já confirmado." });
       return;
     }
-
-    // Verificar se expirou
     if (ag.pagamento_expira_em && new Date(ag.pagamento_expira_em) < new Date()) {
-      res.json({ pago: false, expirado: true, status: "EXPIRADA" });
+      res.status(400).json({ erro: "O PIX expirou. Faça um novo agendamento." });
       return;
     }
 
-    // Buscar credenciais do negócio
-    const { data: negocio } = await supabase
-      .from("negocios")
-      .select("pix_banco, pix_client_id, pix_client_secret, pix_chave_pix, pix_cert_pem, pix_key_pem")
-      .eq("nicho_id", ag.nicho_id)
-      .limit(1)
-      .single();
+    // Confirmar pagamento e disparar notificações
+    processarPagamentoConfirmado(agendamentoId).catch(() => {});
 
-    if (!negocio || negocio.pix_banco !== "inter") {
-      res.json({ pago: false, status: "ATIVA" });
-      return;
-    }
-
-    const creds = montarCredenciais(negocio);
-    if (!creds) { res.json({ pago: false, status: "ATIVA" }); return; }
-
-    // Consultar Inter
-    const { pago, status } = await verificarPagamentoPix(creds, txid);
-
-    if (pago) {
-      // Processar confirmação (async, sem bloquear resposta)
-      confirmarPagamentoAgendamento(ag.id).catch(() => {});
-    }
-
-    res.json({ pago, status });
-  } catch (e: any) {
-    console.error("[pagamento] Erro ao verificar PIX:", e?.message);
-    res.json({ pago: false, status: "ERRO" });
+    res.json({
+      sucesso: true,
+      mensagem: "Pagamento confirmado! Você receberá uma confirmação via WhatsApp.",
+      protocolo: ag.protocolo,
+    });
+  } catch (e) {
+    console.error("[pagamento] Erro ao confirmar:", e);
+    res.status(500).json({ erro: "Erro interno." });
   }
 });
 
 // ============================================================
-// POST /api/pagamento/webhook/inter
-// Webhook do Banco Inter — confirma pagamento instantaneamente
-// Inter envia: { pix: [{ txid, valor, horario, ... }] }
+// GET /api/pagamento/status/:agendamentoId
+// Verifica status do pagamento
 // ============================================================
-pagamentoRouter.post("/pagamento/webhook/inter", async (req: Request, res: Response) => {
+pagamentoRouter.get("/pagamento/status/:agendamentoId", async (req: Request, res: Response) => {
+  const { agendamentoId } = req.params;
+
   try {
-    // Inter envia array de pagamentos no campo "pix"
-    const pixList: any[] = req.body?.pix || [];
+    const { data: ag } = await supabase
+      .from("agendamentos")
+      .select("pagamento_status, pagamento_expira_em, protocolo, taxa_cobrada")
+      .eq("id", agendamentoId)
+      .single();
 
-    for (const p of pixList) {
-      const txid = p.txid;
-      if (!txid) continue;
+    if (!ag) { res.status(404).json({ erro: "Não encontrado." }); return; }
 
-      // Buscar agendamento
-      const { data: ag } = await supabase
-        .from("agendamentos")
-        .select("id, pagamento_status")
-        .eq("pagamento_txid", txid)
-        .single();
+    const expirado = ag.pagamento_expira_em
+      ? new Date(ag.pagamento_expira_em) < new Date()
+      : false;
 
-      if (!ag || ag.pagamento_status === "pago") continue;
-
-      await confirmarPagamentoAgendamento(ag.id).catch(() => {});
-    }
-
-    res.status(200).json({ ok: true });
+    res.json({
+      status: ag.pagamento_status,
+      pago: ag.pagamento_status === "pago",
+      expirado,
+      protocolo: ag.protocolo,
+      taxaCobrada: ag.taxa_cobrada ? Number(ag.taxa_cobrada) : 0,
+    });
   } catch (e) {
-    console.error("[pagamento] Erro no webhook Inter:", e);
+    res.status(500).json({ erro: "Erro interno." });
+  }
+});
+
+// ============================================================
+// PUT /api/pagamento/admin/:agendamentoId
+// Admin confirma ou cancela pagamento manualmente (painel.html)
+// ============================================================
+pagamentoRouter.put("/pagamento/admin/:agendamentoId", autenticar, async (req: Request, res: Response) => {
+  const { agendamentoId } = req.params;
+  const { acao } = req.body; // 'pago' | 'cancelar'
+
+  if (!["pago", "cancelar"].includes(acao)) {
+    res.status(400).json({ erro: "acao deve ser 'pago' ou 'cancelar'." });
+    return;
+  }
+
+  try {
+    if (acao === "pago") {
+      processarPagamentoConfirmado(agendamentoId).catch(() => {});
+      res.json({ sucesso: true, mensagem: "Pagamento confirmado." });
+    } else {
+      await supabase
+        .from("agendamentos")
+        .update({ status: "cancelado", atualizado_em: new Date().toISOString() })
+        .eq("id", agendamentoId);
+      res.json({ sucesso: true, mensagem: "Agendamento cancelado." });
+    }
+  } catch (e) {
+    res.status(500).json({ erro: "Erro interno." });
+  }
+});
+
+// ============================================================
+// POST /api/pagamento/webhook/inter  (mantido para compatibilidade futura)
+// ============================================================
+pagamentoRouter.post("/pagamento/webhook/inter", async (_req: Request, res: Response) => {
+  res.status(200).json({ ok: true });
+});
+
+// ============================================================
+// GET /api/pagamento/pendentes  — lista agendamentos com pagamento pendente (admin)
+// ============================================================
+pagamentoRouter.get("/pagamento/pendentes", autenticar, async (req: Request, res: Response) => {
+  try {
+    const ownerId = req.auth!.ownerId;
+
+    // Busca nicho_ids dos negócios do admin
+    const { data: negocios } = await supabase
+      .from("negocios")
+      .select("nicho_id, nome_fantasia")
+      .eq("owner_id", ownerId);
+
+    if (!negocios?.length) { res.json({ agendamentos: [] }); return; }
+
+    const nichoIds = negocios.map((n: any) => n.nicho_id);
+
+    const { data } = await supabase
+      .from("agendamentos")
+      .select("id, protocolo, cliente_nome, cliente_telefone, data_hora, taxa_cobrada, pagamento_status, pagamento_expira_em, nicho_id")
+      .in("nicho_id", nichoIds)
+      .eq("pagamento_status", "pendente")
+      .eq("status", "confirmado")
+      .order("criado_em", { ascending: false });
+
+    res.json({ agendamentos: data || [] });
+  } catch (e) {
     res.status(500).json({ erro: "Erro interno." });
   }
 });

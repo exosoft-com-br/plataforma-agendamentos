@@ -328,9 +328,18 @@
         </div>
 
         <!-- Status do pagamento -->
-        <div id="pixStatus" style="text-align:center;padding:12px;background:#fff8e1;border-radius:8px;font-size:.85rem;color:#b8860b">
+        <div id="pixStatus" style="text-align:center;padding:12px;background:#fff8e1;border-radius:8px;font-size:.85rem;color:#b8860b;margin-bottom:12px">
           ⏳ Aguardando pagamento...
         </div>
+
+        <!-- Botão "Já Paguei" — só aparece após 8 segundos -->
+        <button id="btnJaPaguei" onclick="confirmarJaPaguei()"
+          style="display:none;width:100%;padding:14px;background:linear-gradient(135deg,#00c37a,#00a06a);color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;margin-bottom:8px">
+          ✅ Já Realizei o Pagamento
+        </button>
+        <p id="pixJaPagueiHint" style="text-align:center;font-size:.75rem;color:#aaa">
+          Pague o PIX e clique no botão acima para confirmar
+        </p>
       </div>
 
       <!-- Step 5: Sucesso -->
@@ -598,8 +607,8 @@
       return (negocioData && negocioData.nicho) ? negocioData.nicho.id : NICHO_ID;
     }
 
-    let _pixTxid = null;
-    let _pixPollInterval = null;
+    let _pixAgendamentoId = null;
+    let _pixBtnTimer = null;
 
     async function confirmarAgendamento() {
       const btn = document.getElementById('btnConfirmar');
@@ -631,7 +640,7 @@
 
         // ── Fluxo PIX obrigatório ──────────────────────────────────────────
         if (json.pixRequired && json.pix) {
-          _pixTxid = json.pix.txid;
+          _pixAgendamentoId = json.agendamento.id;
 
           // Preencher UI do PIX
           document.getElementById('pixValorDisplay').textContent =
@@ -645,8 +654,13 @@
             json.pix.qrImagem.startsWith('data:') ? json.pix.qrImagem : `data:image/png;base64,${json.pix.qrImagem}`;
           document.getElementById('pixQrText').value = json.pix.qr;
 
+          // Exibir botão "Já Paguei" após 8 segundos
+          document.getElementById('btnJaPaguei').style.display = 'none';
+          _pixBtnTimer = setTimeout(() => {
+            document.getElementById('btnJaPaguei').style.display = 'block';
+          }, 8000);
+
           showStep('Pix');
-          iniciarPollPix();
           return;
         }
 
@@ -668,32 +682,42 @@
       navigator.clipboard.writeText(txt).then(() => mostrarToast('Código PIX copiado!', '📋', 2500));
     }
 
-    function iniciarPollPix() {
-      _pixPollInterval = setInterval(async () => {
-        if (!_pixTxid) return;
-        try {
-          const res = await fetch(`${API_URL}/api/pagamento/verificar/${_pixTxid}`);
-          const data = await res.json();
+    async function confirmarJaPaguei() {
+      const btn = document.getElementById('btnJaPaguei');
+      btn.disabled = true;
+      btn.textContent = '⏳ Confirmando...';
 
-          if (data.pago) {
-            clearInterval(_pixPollInterval);
-            document.getElementById('pixStatus').style.background = '#e6f9ee';
-            document.getElementById('pixStatus').style.color = '#27ae60';
-            document.getElementById('pixStatus').textContent = '✅ Pagamento confirmado!';
-            setTimeout(() => {
-              document.getElementById('resultProtocolo').textContent = _pixTxid.slice(0, 20);
-              document.getElementById('resultMsg').textContent = 'Pagamento PIX confirmado! Seu agendamento está garantido. Você receberá uma confirmação via WhatsApp.';
-              showStep(5);
-              mostrarToast('Pagamento confirmado! Agendamento garantido.', '✅', 6000);
-            }, 1500);
-          } else if (data.expirado) {
-            clearInterval(_pixPollInterval);
-            document.getElementById('pixStatus').style.background = '#fde8e8';
-            document.getElementById('pixStatus').style.color = '#e53e3e';
-            document.getElementById('pixStatus').textContent = '❌ PIX expirado. Volte e tente novamente.';
-          }
-        } catch { /* continua tentando */ }
-      }, 3000);
+      try {
+        const res = await fetch(`${API_URL}/api/pagamento/confirmar/${_pixAgendamentoId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await res.json();
+
+        if (data.sucesso) {
+          clearTimeout(_pixBtnTimer);
+          document.getElementById('pixStatus').style.background = '#e6f9ee';
+          document.getElementById('pixStatus').style.color = '#27ae60';
+          document.getElementById('pixStatus').textContent = '✅ Pagamento confirmado!';
+          btn.style.display = 'none';
+
+          setTimeout(() => {
+            document.getElementById('resultProtocolo').textContent = data.protocolo || '';
+            document.getElementById('resultMsg').textContent =
+              'Seu agendamento foi confirmado! Você receberá uma mensagem via WhatsApp em instantes.';
+            showStep(5);
+            mostrarToast('Agendamento confirmado com sucesso!', '✅', 6000);
+          }, 1200);
+        } else {
+          btn.disabled = false;
+          btn.textContent = '✅ Já Realizei o Pagamento';
+          mostrarToast(data.erro || 'Erro ao confirmar.', '⚠️', 4000);
+        }
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = '✅ Já Realizei o Pagamento';
+        mostrarToast('Erro de conexão. Tente novamente.', '⚠️', 3000);
+      }
     }
 
     async function cancelarAgendamento() {

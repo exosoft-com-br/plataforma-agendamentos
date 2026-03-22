@@ -1203,38 +1203,14 @@
             </label>
           </div>
           <div id="e${idx}PixConfig" style="display:${n.taxaAtiva ? 'block' : 'none'}">
-            <p style="font-size:12px;color:#888;margin-bottom:10px">
-              ${n.pixConfigurado ? '✅ Credenciais PIX configuradas.' : '⚠️ Preencha as credenciais do Banco Inter para ativar.'}
+            <p style="font-size:12px;color:#666;margin-bottom:10px;background:#f0f9ff;padding:8px;border-radius:6px">
+              ℹ️ O QR Code PIX é gerado automaticamente. Basta informar sua chave PIX abaixo — funciona com qualquer banco.
             </p>
-            <div class="form-group" style="margin-bottom:8px">
-              <label style="font-size:12px">Banco</label>
-              <select id="e${idx}PixBanco" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;font-size:13px">
-                <option value="inter" ${n.pixBanco==='inter'?'selected':''}>Banco Inter</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin-bottom:8px">
-              <label style="font-size:12px">Chave PIX do negócio</label>
-              <input type="text" id="e${idx}PixChave" value="${n.pixChavePix || ''}" placeholder="CPF, CNPJ, email, telefone ou chave aleatória" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;font-size:13px">
-            </div>
-            <div class="form-row">
-              <div class="form-group" style="margin-bottom:8px">
-                <label style="font-size:12px">Client ID (Banco Inter)</label>
-                <input type="text" id="e${idx}PixClientId" value="${n.pixClientId || ''}" placeholder="Client ID" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;font-size:13px">
-              </div>
-              <div class="form-group" style="margin-bottom:8px">
-                <label style="font-size:12px">Client Secret</label>
-                <input type="password" id="e${idx}PixSecret" placeholder="${n.pixConfigurado ? '(mantido — deixe em branco para não alterar)' : 'Client Secret'}" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;font-size:13px">
-              </div>
-            </div>
-            <div class="form-group" style="margin-bottom:8px">
-              <label style="font-size:12px">Certificado PEM <span style="color:#888">(conteúdo do arquivo .crt)</span></label>
-              <textarea id="e${idx}PixCert" rows="3" placeholder="-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:monospace">${n.pixConfigurado ? '(certificado configurado)' : ''}</textarea>
-            </div>
             <div class="form-group" style="margin-bottom:4px">
-              <label style="font-size:12px">Chave Privada PEM <span style="color:#888">(conteúdo do arquivo .key)</span></label>
-              <textarea id="e${idx}PixKey" rows="3" placeholder="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-family:monospace">${n.pixConfigurado ? '(chave configurada)' : ''}</textarea>
+              <label style="font-size:12px">Chave PIX do negócio</label>
+              <input type="text" id="e${idx}PixChave" value="${n.pixChavePix || ''}" placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+              <p style="font-size:11px;color:#999;margin-top:4px">Essa é a chave cadastrada no seu banco (Inter, C6, Nubank, Bradesco, etc.)</p>
             </div>
-            <p style="font-size:11px;color:#999;margin-top:6px">Os certificados são gerados no <a href="https://developers.inter.co" target="_blank">portal do Banco Inter</a> → API Banking → Gerenciar Aplicação.</p>
           </div>
         </div>
 
@@ -1248,11 +1224,6 @@
     async function salvarEdicao(idx) {
       const n = negociosCache[idx];
       try {
-        const taxaAtiva = document.getElementById(`e${idx}TaxaAtiva`)?.checked ?? false;
-        const pixSecret = document.getElementById(`e${idx}PixSecret`)?.value || '';
-        const pixCert   = document.getElementById(`e${idx}PixCert`)?.value || '';
-        const pixKey    = document.getElementById(`e${idx}PixKey`)?.value || '';
-
         const body = {
           nomeFantasia: document.getElementById(`e${idx}Nome`).value.trim(),
           descricao: document.getElementById(`e${idx}Desc`).value.trim(),
@@ -1264,14 +1235,8 @@
           estado: document.getElementById(`e${idx}Estado`).value.trim().toUpperCase(),
           ativo: document.getElementById(`e${idx}Ativo`)?.checked ?? true,
           taxaAgendamento: parseFloat(document.getElementById(`e${idx}Taxa`)?.value || '0') || 0,
-          taxaAtiva,
-          pixBanco: document.getElementById(`e${idx}PixBanco`)?.value || null,
+          taxaAtiva: document.getElementById(`e${idx}TaxaAtiva`)?.checked ?? false,
           pixChavePix: document.getElementById(`e${idx}PixChave`)?.value.trim() || null,
-          pixClientId: document.getElementById(`e${idx}PixClientId`)?.value.trim() || null,
-          // Só enviar se preenchido (não sobrescrever com vazio)
-          ...(pixSecret ? { pixClientSecret: pixSecret } : {}),
-          ...(pixCert && !pixCert.includes('(certificado configurado)') ? { pixCertPem: pixCert } : {}),
-          ...(pixKey && !pixKey.includes('(chave configurada)') ? { pixKeyPem: pixKey } : {}),
         };
         const data = await apiFetch(`/negocios/${n.id}`, { method: 'PUT', body: JSON.stringify(body) });
         if (data.erro) { showAlert('error', data.erro); return; }
